@@ -1,0 +1,3 @@
+[submodule "depends/html-search"]
+	path = depends/html-search
+	url = https://gitlab.com/DEC05EBA/html-search.git

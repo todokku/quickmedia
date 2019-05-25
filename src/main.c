@@ -1,12 +1,26 @@
 #include <gtk/gtk.h>
 #include <glib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <quickmedia/HtmlSearch.h>
 
 static GtkWidget *window = NULL;
 static GtkWidget *search_entry = NULL;
 static GtkWidget *list = NULL;
-// TODO: Optimize this. There shouldn't be a need to copy the whole buffer everytime it's modified
+/* TODO: Optimize this. There shouldn't be a need to copy the whole buffer everytime it's modified */
 static gchar *search_text = NULL;
+
+typedef struct {
+    const char *data;
+    size_t size;
+} StringView;
+
+typedef enum {
+    DATA_INVALID,
+    DATA_TITLE,
+    DATA_DESCRIPTION,
+    DATA_IMAGE
+} DataType;
 
 static GtkLabel* get_list_item_title(GtkListBoxRow *row) {
     GtkWidget *child_widget = GTK_WIDGET(gtk_container_get_children(GTK_CONTAINER(row))->data);
@@ -20,7 +34,11 @@ static gboolean focus_out_callback(GtkWidget *widget, GdkEvent *event, gpointer 
 
 static gboolean filter_func(GtkListBoxRow *row, gpointer userdata) {
     GtkLabel *row_title_label = get_list_item_title(row);
-    return !search_text || strlen(search_text) == 0 || strstr(gtk_label_get_text(row_title_label), search_text) != NULL;
+    gboolean show = !search_text || strlen(search_text) == 0 || strstr(gtk_label_get_text(row_title_label), search_text) != NULL;
+    if(!show && gtk_list_box_get_selected_row(GTK_LIST_BOX(list)) == row) {
+        gtk_list_box_unselect_row(GTK_LIST_BOX(list), row);
+    }
+    return show;
 }
 
 static void list_move_select(GtkListBox *list, gint direction) {
@@ -37,12 +55,19 @@ static void list_move_select(GtkListBox *list, gint direction) {
 static gboolean keypress_callback(GtkWidget *widget, GdkEventKey *event, gpointer userdata) {
     if(event->keyval == GDK_KEY_BackSpace) {
         gtk_editable_delete_text(GTK_EDITABLE(search_entry), 0, -1);
-    } else if(event->keyval == GDK_KEY_Return) {
+    } else if(event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter) {
         GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(list));
         if(row) {
-            GtkLabel *row_title_label = get_list_item_title(row);
-            puts(gtk_label_get_text(row_title_label));
+            if(gtk_widget_is_visible(GTK_WIDGET(row))) {
+                GtkLabel *row_title_label = get_list_item_title(row);
+                puts(gtk_label_get_text(row_title_label));
+            } else {
+                puts(gtk_entry_get_text(GTK_ENTRY(search_entry)));
+            }
         }
+        gtk_widget_destroy(window);
+        return FALSE;
+    } else if(event->keyval == GDK_KEY_Escape) {
         gtk_widget_destroy(window);
         return FALSE;
     } else if(event->keyval == GDK_KEY_Up) {
@@ -54,7 +79,7 @@ static gboolean keypress_callback(GtkWidget *widget, GdkEventKey *event, gpointe
     } else {
         gint position = -1;
         gtk_editable_insert_text(GTK_EDITABLE(search_entry), event->string, -1, &position);
-        printf("key press %d\n", event->keyval);
+        //printf("key press %d\n", event->keyval);
     }
 
     g_free(search_text);
@@ -98,7 +123,7 @@ static void activate(GtkApplication *app, gpointer userdata) {
     gtk_container_add(GTK_CONTAINER(scrolled_window), list);
 
     for(int i = 0; i < 100; ++i) {
-        GtkWidget *item = create_entry("hello, world!", "asdas");
+        GtkWidget *item = create_entry("hello, world!", "description");
         gtk_list_box_insert(GTK_LIST_BOX(list), item, i);
     }
 
@@ -107,7 +132,6 @@ static void activate(GtkApplication *app, gpointer userdata) {
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ALWAYS);
     gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
     gtk_widget_show_all(window);
-
 
     gtk_widget_add_events(window, GDK_KEY_PRESS_MASK | GDK_FOCUS_CHANGE_MASK);
     g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(keypress_callback), NULL);
@@ -121,4 +145,3 @@ int main(int argc, char **argv) {
     g_object_unref(app);
     return status;
 }
-
