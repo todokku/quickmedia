@@ -1,11 +1,11 @@
 #include "../plugins/Manganelo.hpp"
 #include <quickmedia/HtmlSearch.h>
+#include <json/reader.h>
 
 namespace QuickMedia {
     SearchResult Manganelo::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
         std::string url = "https://manganelo.com/search/";
-        // TODO: Escape @text. Need to replace space with underscore for example.
-        url += text;
+        url += url_param_encode(text);
 
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
@@ -47,5 +47,64 @@ namespace QuickMedia {
         cleanup:
         quickmedia_html_search_deinit(&html_search);
         return result == 0 ? SearchResult::OK : SearchResult::ERR;
+    }
+
+    static void remove_html_span(std::string &str) {
+        size_t open_tag_start = str.find("<span");
+        if(open_tag_start == std::string::npos)
+            return;
+
+        size_t open_tag_end = str.find('>', open_tag_start + 5);
+        if(open_tag_end == std::string::npos)
+            return;
+
+        str.erase(open_tag_start, open_tag_end - open_tag_start + 1);
+
+        size_t close_tag = str.find("</span>");
+        if(close_tag == std::string::npos)
+            return;
+
+        str.erase(close_tag, 7);
+    }
+
+    SuggestionResult Manganelo::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+        if(text.empty())
+            return SuggestionResult::OK;
+
+        std::string url = "https://manganelo.com/home_json_search";
+        std::string search_term = "searchword=";
+        search_term += url_param_encode(text);
+        CommandArg data_arg = { "--data", std::move(search_term) };
+
+        std::string server_response;
+        if(download_to_string(url, server_response, {data_arg}) != DownloadResult::OK)
+            return SuggestionResult::NET_ERR;
+
+        if(server_response.empty())
+            return SuggestionResult::OK;
+
+        Json::Value json_root;
+        Json::CharReaderBuilder json_builder;
+        std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
+        std::string json_errors;
+        if(json_reader->parse(&server_response.front(), &server_response.back(), &json_root, &json_errors)) {
+            fprintf(stderr, "Manganelo suggestions json error: %s\n", json_errors.c_str());
+            return SuggestionResult::ERR;
+        }
+
+        if(json_root.isArray()) {
+            for(const Json::Value &child : json_root) {
+                if(child.isObject()) {
+                    Json::Value name = child.get("name", "");
+                    if(name.isString() && name.asCString()[0] != '\0') {
+                        std::string name_str = name.asString();
+                        remove_html_span(name_str);
+                        auto item = std::make_unique<BodyItem>(name_str);
+                        result_items.push_back(std::move(item));
+                    }
+                }
+            }
+        }
+        return SuggestionResult::OK;
     }
 }

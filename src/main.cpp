@@ -81,10 +81,16 @@ namespace QuickMedia {
     };
 }
 
-static void search(sf::String text, QuickMedia::Body *body, QuickMedia::Plugin *plugin) {
+static void search(const sf::String &text, QuickMedia::Body *body, QuickMedia::Plugin *plugin) {
     body->clear_items();
     QuickMedia::SearchResult search_result = plugin->search(text, body->items);
     fprintf(stderr, "Search result: %d\n", search_result);
+}
+
+static void update_search_suggestions(const sf::String &text, QuickMedia::Body *body, QuickMedia::Plugin *plugin) {
+    body->clear_items();
+    QuickMedia::SuggestionResult suggestion_result = plugin->update_search_suggestions(text, body->items);
+    fprintf(stderr, "Suggestion result: %d\n", suggestion_result);
 }
 
 int main() {
@@ -120,10 +126,14 @@ int main() {
     QuickMedia::Body body(font);
     QuickMedia::Manganelo manganelo_plugin;
     QuickMedia::Youtube youtube_plugin;
-    QuickMedia::Plugin *plugin = &youtube_plugin;
+    QuickMedia::Plugin *plugin = &manganelo_plugin;
+
+    sf::Clock time_since_search_update;
+    bool updated_search = false;
 
     while (window.isOpen()) {
         sf::Event event;
+
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed)
                 window.close();
@@ -150,6 +160,8 @@ int main() {
                             search_text.setString("Search...");
                             search_text.setFillColor(text_placeholder_color);
                         }
+                        updated_search = true;
+                        time_since_search_update.restart();
                     }
                 } else if(event.text.unicode == 13 && !show_placeholder) { // Return
                     body.reset_selected();
@@ -166,8 +178,18 @@ int main() {
                     sf::String str = search_text.getString();
                     str += event.text.unicode;
                     search_text.setString(str);
+                    updated_search = true;
+                    time_since_search_update.restart();
                 }
             }
+        }
+
+        if(updated_search && time_since_search_update.getElapsedTime().asMilliseconds() >= 90) {
+            updated_search = false;
+            sf::String str = search_text.getString();
+            if(show_placeholder)
+                str.clear();
+            update_search_suggestions(str, &body, plugin);
         }
 
         if(resized) {
