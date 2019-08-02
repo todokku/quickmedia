@@ -8,7 +8,7 @@
 #define READ_END 0
 #define WRITE_END 1
 
-int exec_program(char **args, ProgramOutputCallback output_callback, void *userdata) {
+int exec_program(const char **args, ProgramOutputCallback output_callback, void *userdata) {
     /* 1 arguments */
     if(args[0] == NULL)
         return -1;
@@ -28,24 +28,15 @@ int exec_program(char **args, ProgramOutputCallback output_callback, void *userd
         close(fd[READ_END]);
         close(fd[WRITE_END]);
 
-        execv(args[0], args);
+        execvp(args[0], args);
         return 0;
     } else { /* parent */
         close(fd[WRITE_END]);
 
+        int result = 0;
         int status;
-        waitpid(pid, &status, 0);
-        if(!WIFEXITED(status))
-            return -4;
-
-        int exit_status = WEXITSTATUS(status);
-        if(exit_status != 0) {
-            fprintf(stderr, "Failed to execute program, exit status %d\n", exit_status);
-            return -exit_status;
-        }
 
         char buffer[2048];
-        int result = 0;
 
         for(;;) {
             ssize_t bytes_read = read(fd[READ_END], buffer, sizeof(buffer));
@@ -55,13 +46,32 @@ int exec_program(char **args, ProgramOutputCallback output_callback, void *userd
                 int err = errno;
                 fprintf(stderr, "Failed to read from pipe to program %s, error: %s\n", args[0], strerror(err));
                 result = -err;
-                break;
+                goto cleanup;
             }
 
             if(output_callback(buffer, bytes_read, userdata) != 0)
                 break;
         }
 
+        if(waitpid(pid, &status, WUNTRACED) == -1) {
+            perror("waitpid failed");
+            result = -5;
+            goto cleanup;
+        }
+
+        if(!WIFEXITED(status)) {
+            result = -4;
+            goto cleanup;
+        }
+
+        int exit_status = WEXITSTATUS(status);
+        if(exit_status != 0) {
+            fprintf(stderr, "Failed to execute program, exit status %d\n", exit_status);
+            result = -exit_status;
+            goto cleanup;
+        }
+
+        cleanup:
         close(fd[READ_END]);
         return result;
     }
