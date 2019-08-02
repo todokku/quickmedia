@@ -49,22 +49,24 @@ namespace QuickMedia {
         return result == 0 ? SearchResult::OK : SearchResult::ERR;
     }
 
-    static void remove_html_span(std::string &str) {
+    // Returns true if changed
+    static bool remove_html_span(std::string &str) {
         size_t open_tag_start = str.find("<span");
         if(open_tag_start == std::string::npos)
-            return;
+            return false;
 
         size_t open_tag_end = str.find('>', open_tag_start + 5);
         if(open_tag_end == std::string::npos)
-            return;
+            return false;
 
         str.erase(open_tag_start, open_tag_end - open_tag_start + 1);
 
         size_t close_tag = str.find("</span>");
         if(close_tag == std::string::npos)
-            return;
+            return true;
 
         str.erase(close_tag, 7);
+        return true;
     }
 
     SuggestionResult Manganelo::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
@@ -98,7 +100,7 @@ namespace QuickMedia {
                     Json::Value name = child.get("name", "");
                     if(name.isString() && name.asCString()[0] != '\0') {
                         std::string name_str = name.asString();
-                        remove_html_span(name_str);
+                        while(remove_html_span(name_str)) {}
                         auto item = std::make_unique<BodyItem>(name_str);
                         result_items.push_back(std::move(item));
                     }
