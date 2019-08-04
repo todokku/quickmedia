@@ -7,8 +7,7 @@
 
 namespace QuickMedia {
     void* getProcAddressMpv(void *funcContext, const char *name) {
-        VideoPlayer *video_player = (VideoPlayer*)funcContext;
-        return (void*)video_player->context.getFunction(name);
+        return (void*)sf::Context::getFunction(name);
     }
     
     void onMpvRedraw(void *rawVideo) {
@@ -23,7 +22,7 @@ namespace QuickMedia {
         mpv(nullptr),
         mpvGl(nullptr),
         textureBuffer(nullptr),
-        alive(true)
+        desired_size(width, height)
     {
         context.setActive(true);
         texture.setSmooth(true);
@@ -37,76 +36,24 @@ namespace QuickMedia {
         mpv_set_option_string(mpv, "input-default-bindings", "yes");
         mpv_set_option_string(mpv, "input-vo-keyboard", "yes");
         
+        if(mpv_initialize(mpv) < 0)
+            throw VideoInitializationException("Failed to initialize mpv");
+
         mpv_set_option_string(mpv, "vo", "opengl-cb");
         mpv_set_option_string(mpv, "hwdec", "auto");
 
         if(loop)
             mpv_set_option_string(mpv, "loop", "inf");
-        
-        if(mpv_initialize(mpv) < 0)
-            throw VideoInitializationException("Failed to initialize mpv");
 
         mpvGl = (mpv_opengl_cb_context*)mpv_get_sub_api(mpv, MPV_SUB_API_OPENGL_CB);
         if(!mpvGl)
             throw VideoInitializationException("Failed to initialize mpv opengl render context");
         
         mpv_opengl_cb_set_update_callback(mpvGl, onMpvRedraw, this);
-        if(mpv_opengl_cb_init_gl(mpvGl, nullptr, getProcAddressMpv, this) < 0)
+        if(mpv_opengl_cb_init_gl(mpvGl, nullptr, getProcAddressMpv, nullptr) < 0)
             throw VideoInitializationException("Failed to initialize mpv gl callback func");
         
         context.setActive(false);
-        renderThread = std::thread([this]() {
-            context.setActive(true);
-            while(alive) {
-                while(true) {
-                    mpv_event *mpvEvent = mpv_wait_event(mpv, 0.010);
-                    if(mpvEvent->event_id == MPV_EVENT_NONE)
-                        break;
-                    else if(mpvEvent->event_id == MPV_EVENT_SHUTDOWN)
-                        return;
-                    else if(mpvEvent->event_id == MPV_EVENT_VIDEO_RECONFIG) {
-                        int64_t w, h;
-                        if (mpv_get_property(mpv, "dwidth", MPV_FORMAT_INT64, &w) >= 0 &&
-                            mpv_get_property(mpv, "dheight", MPV_FORMAT_INT64, &h) >= 0 &&
-                            w > 0 && h > 0 && (w != video_size.x || h != video_size.y))
-                        {
-                            std::lock_guard<std::mutex> lock(renderMutex);
-                            video_size.x = w;
-                            video_size.y = h;
-                            context.setActive(true);
-                            // TODO: Verify if it's valid to re-create the texture like this,
-                            // instead of using deconstructor
-                            if(texture.create(w, h)) {
-                                void *newTextureBuf = realloc(textureBuffer, w * h * 4);
-                                if(newTextureBuf)
-                                    textureBuffer = (sf::Uint8*)newTextureBuf;
-                            }
-                            glViewport(0, 0, w, h);
-                        }
-                        resize(desired_size);
-                    } else if(mpvEvent->event_id == MPV_EVENT_END_FILE) {
-                        if(onPlaybackEndedCallback)
-                            onPlaybackEndedCallback();
-                    } else {
-                        //printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
-                    }
-                }
-                
-                if(redrawCounter > 0 && textureBuffer) {
-                    --redrawCounter;
-                    context.setActive(true);
-                    std::lock_guard<std::mutex> lock(renderMutex);
-                    auto textureSize = texture.getSize();
-                    //mpv_render_context_render(mpvGl, params);
-                    mpv_opengl_cb_draw(mpvGl, 0, textureSize.x, textureSize.y);
-                    // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
-                    glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
-                    texture.update(textureBuffer);
-                    sprite.setTexture(texture, true);
-                    mpv_opengl_cb_report_flip(mpvGl, 0);
-                }
-            }
-        });
         
         seekbar.setFillColor(sf::Color::White);
         seekbar_background.setFillColor(sf::Color(0, 0, 0, 150));
@@ -114,11 +61,6 @@ namespace QuickMedia {
     }
     
     VideoPlayer::~VideoPlayer() {
-        alive = false;
-        renderThread.join();
-        
-        std::lock_guard<std::mutex> lock(renderMutex);
-        context.setActive(true);
         if(mpvGl)
             mpv_opengl_cb_set_update_callback(mpvGl, nullptr, nullptr);
         
@@ -131,10 +73,10 @@ namespace QuickMedia {
         sprite.setPosition(x, y);
     }
 
-    bool VideoPlayer::resize(const sf::Vector2i &size) {
+    void VideoPlayer::resize(const sf::Vector2i &size) {
         desired_size = size;
         if(!textureBuffer)
-            return true;
+            return;
         float video_ratio = (double)video_size.x / (double)video_size.y;
         float scale_x = 1.0f;
         float scale_y = 1.0f;
@@ -150,14 +92,58 @@ namespace QuickMedia {
             sprite.setPosition(size.x * 0.5f - video_size.x * scale_x * 0.5f, 0.0f);
         }
         sprite.setScale(scale_x, scale_y);
-        return true;
     }
     
     void VideoPlayer::draw(sf::RenderWindow &window) {
-        {
-            std::lock_guard<std::mutex> lock(renderMutex);
-            window.draw(sprite);
+        while(true) {
+            mpv_event *mpvEvent = mpv_wait_event(mpv, 0.0);
+            if(mpvEvent->event_id == MPV_EVENT_NONE)
+                break;
+            else if(mpvEvent->event_id == MPV_EVENT_SHUTDOWN)
+                return;
+            else if(mpvEvent->event_id == MPV_EVENT_VIDEO_RECONFIG) {
+                int64_t w, h;
+                if (mpv_get_property(mpv, "dwidth", MPV_FORMAT_INT64, &w) >= 0 &&
+                    mpv_get_property(mpv, "dheight", MPV_FORMAT_INT64, &h) >= 0 &&
+                    w > 0 && h > 0 && (w != video_size.x || h != video_size.y))
+                {
+                    video_size.x = w;
+                    video_size.y = h;
+                    // TODO: Verify if it's valid to re-create the texture like this,
+                    // instead of using deconstructor
+                    if(texture.create(w, h)) {
+                        void *newTextureBuf = realloc(textureBuffer, w * h * 4);
+                        if(newTextureBuf)
+                            textureBuffer = (sf::Uint8*)newTextureBuf;
+                    }
+                    context.setActive(true);
+                    glViewport(0, 0, w, h);
+                    context.setActive(false);
+                    resize(desired_size);
+                }
+            } else if(mpvEvent->event_id == MPV_EVENT_END_FILE) {
+                if(onPlaybackEndedCallback)
+                    onPlaybackEndedCallback();
+            } else {
+                //printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
+            }
         }
+        
+        if(redrawCounter > 0 && textureBuffer) {
+            --redrawCounter;
+            auto textureSize = texture.getSize();
+            context.setActive(true);
+            //mpv_render_context_render(mpvGl, params);
+            mpv_opengl_cb_draw(mpvGl, 0, textureSize.x, textureSize.y);
+            // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
+            glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
+            texture.update(textureBuffer);
+            sprite.setTexture(texture, true);
+            mpv_opengl_cb_report_flip(mpvGl, 0);
+            context.setActive(false);
+        }
+        window.draw(sprite);
+
         double pos = 0.0;
         mpv_get_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &pos);
         pos *= 0.01;

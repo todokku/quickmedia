@@ -313,7 +313,6 @@ namespace QuickMedia {
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
             BodyItem *selected_item = body->get_selected();
-            printf("Selected item: %s\n", selected_item->title.c_str());
             if(!selected_item)
                 return;
             video_url = selected_item->url;
@@ -401,7 +400,6 @@ namespace QuickMedia {
             };
         }
 
-        bool resized = true;
         sf::Clock resize_timer;
         sf::Event event;
 
@@ -415,8 +413,8 @@ namespace QuickMedia {
                     window_size.y = event.size.height;
                     sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
                     window.setView(sf::View(visible_area));
-                    resized = true;
-                    resize_timer.restart();
+                    if(video_player)
+                        video_player->resize(sf::Vector2i(window_size.x, window_size.y));
                 } else if(event.type == sf::Event::KeyPressed) {
                     if(event.key.code == sf::Keyboard::Escape) {
                         current_page = Page::SEARCH_SUGGESTION;
@@ -424,14 +422,6 @@ namespace QuickMedia {
                         body->reset_selected();
                         search_bar->clear();
                     }
-                }
-            }
-
-            if(resized && resize_timer.getElapsedTime().asMilliseconds() >= 300) {
-                resized = false;
-                if(video_player) {
-                    if(!video_player->resize(sf::Vector2i(window_size.x, window_size.y)))
-                        video_player.release();
                 }
             }
 

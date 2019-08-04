@@ -29,7 +29,7 @@ namespace QuickMedia {
         ~VideoPlayer();
         
         void setPosition(float x, float y);
-        bool resize(const sf::Vector2i &size);
+        void resize(const sf::Vector2i &size);
         void draw(sf::RenderWindow &window);
 
         void load_file(const std::string &path);
@@ -41,12 +41,9 @@ namespace QuickMedia {
     private:
         mpv_handle *mpv;
         mpv_opengl_cb_context *mpvGl;
-        std::thread renderThread;
-        std::mutex renderMutex;
         sf::Sprite sprite;
         sf::Texture texture;
         sf::Uint8 *textureBuffer;
-        bool alive;
         sf::Vector2i video_size;
         sf::Vector2i desired_size;
         sf::RectangleShape seekbar;
