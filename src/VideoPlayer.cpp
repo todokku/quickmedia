@@ -14,8 +14,22 @@ namespace QuickMedia {
         VideoPlayer *video_player = (VideoPlayer*)rawVideo;
         ++video_player->redrawCounter;
     }
+
+    static void check_error(int status) {
+        if(status < 0)
+            fprintf(stderr, "mpv api error: %s\n", mpv_error_string(status));
+    }
+
+    static void mpv_set_option_bool(mpv_handle *mpv, const char *option, bool value) {
+        int int_value = value;
+        check_error(mpv_set_option(mpv, option, MPV_FORMAT_FLAG, &int_value));
+    }
+
+    static void mpv_set_option_int64(mpv_handle *mpv, const char *option, int64_t value) {
+        check_error(mpv_set_option(mpv, option, MPV_FORMAT_INT64, &value));
+    }
     
-    VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, const char *file, bool loop) : 
+    VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop) : 
         redrawCounter(0),
         onPlaybackEndedCallback(nullptr),
         mpv(nullptr),
@@ -33,20 +47,23 @@ namespace QuickMedia {
         if(!mpv)
             throw VideoInitializationException("Failed to create mpv handle");
 
-        //mpv_set_option_string(mpv, "input-default-bindings", "yes");
-        //mpv_set_option_string(mpv, "input-vo-keyboard", "yes");
-        mpv_set_option_string(mpv, "cache-secs", "120");
-        mpv_set_option_string(mpv, "demuxer-max-bytes", "20M");
-        mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M");
+        //check_error(mpv_set_option_string(mpv, "input-default-bindings", "yes"));
+        //check_error(mpv_set_option_string(mpv, "input-vo-keyboard", "yes"));
+        check_error(mpv_set_option_string(mpv, "cache-secs", "120"));
+        check_error(mpv_set_option_string(mpv, "demuxer-max-bytes", "20M"));
+        check_error(mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M"));
+
+        //mpv_set_option_bool(mpv, "osc", true);
+        //mpv_set_option_int64(mpv, "wid", window_handle);
         
         if(mpv_initialize(mpv) < 0)
             throw VideoInitializationException("Failed to initialize mpv");
 
-        mpv_set_option_string(mpv, "vo", "opengl-cb");
-        mpv_set_option_string(mpv, "hwdec", "auto");
+        check_error(mpv_set_option_string(mpv, "vo", "opengl-cb"));
+        check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
 
         if(loop)
-            mpv_set_option_string(mpv, "loop", "inf");
+            check_error(mpv_set_option_string(mpv, "loop", "inf"));
 
         mpvGl = (mpv_opengl_cb_context*)mpv_get_sub_api(mpv, MPV_SUB_API_OPENGL_CB);
         if(!mpvGl)

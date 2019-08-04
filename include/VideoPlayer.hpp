@@ -25,7 +25,7 @@ namespace QuickMedia {
     class VideoPlayer {
     public:
         // Throws VideoInitializationException on error
-        VideoPlayer(unsigned int width, unsigned int height, const char *file, bool loop = false);
+        VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop = false);
         ~VideoPlayer();
         
         void setPosition(float x, float y);

@@ -380,7 +380,7 @@ namespace QuickMedia {
         std::unique_ptr<VideoPlayer> video_player;
         try {
             printf("Play video: %s\n", video_url.c_str());
-            video_player = std::make_unique<VideoPlayer>(window_size.x, window_size.y, video_url.c_str());
+            video_player = std::make_unique<VideoPlayer>(window_size.x, window_size.y, window.getSystemHandle(), video_url.c_str());
         } catch(VideoInitializationException &e) {
             fprintf(stderr, "Failed to create video player!. TODO: Show this to the user");
         }

@@ -1,8 +1,13 @@
 #include "../plugins/Youtube.hpp"
 #include <quickmedia/HtmlSearch.h>
 #include <json/reader.h>
+#include <string.h>
 
 namespace QuickMedia {
+    static bool begins_with(const char *str, const char *begin_with) {
+        return strncmp(str, begin_with, strlen(begin_with)) == 0;
+    }
+
     SearchResult Youtube::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
         std::string url = "https://youtube.com/results?search_query=";
         url += url_param_encode(text);
@@ -21,8 +26,9 @@ namespace QuickMedia {
                 auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *title = quickmedia_html_node_get_attribute_value(node, "title");
-                if(href && title) {
-                auto item = std::make_unique<BodyItem>(title);
+                // Checking for watch?v helps skipping ads
+                if(href && title && begins_with(href, "/watch?v=")) {
+                    auto item = std::make_unique<BodyItem>(title);
                     item->url = std::string("https://www.youtube.com") + href;
                     result_items->push_back(std::move(item));
                 }
@@ -98,7 +104,7 @@ namespace QuickMedia {
                 auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 // TODO: Also add title for related media
-                if(href) {
+                if(href && begins_with(href, "/watch?v=")) {
                     auto item = std::make_unique<BodyItem>("");
                     item->url = std::string("https://www.youtube.com") + href;
                     result_items->push_back(std::move(item));
