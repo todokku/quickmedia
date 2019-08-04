@@ -32,15 +32,16 @@ namespace QuickMedia {
         void resize(const sf::Vector2i &size);
         void draw(sf::RenderWindow &window);
 
+        // @path can also be an url if youtube-dl is installed
         void load_file(const std::string &path);
         
         // This counter is incremented when mpv wants to redraw content
         std::atomic_int redrawCounter;
-        sf::Context context;
         PlaybackEndedCallback onPlaybackEndedCallback;
     private:
         mpv_handle *mpv;
         mpv_opengl_cb_context *mpvGl;
+        std::unique_ptr<sf::Context> context;
         sf::Sprite sprite;
         sf::Texture texture;
         sf::Uint8 *textureBuffer;

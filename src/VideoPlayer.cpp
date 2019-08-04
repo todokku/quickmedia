@@ -17,14 +17,14 @@ namespace QuickMedia {
     
     VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, const char *file, bool loop) : 
         redrawCounter(0),
-        context(sf::ContextSettings(), width, height),
         onPlaybackEndedCallback(nullptr),
         mpv(nullptr),
         mpvGl(nullptr),
+        context(std::make_unique<sf::Context>(sf::ContextSettings(), width, height)),
         textureBuffer(nullptr),
         desired_size(width, height)
     {
-        context.setActive(true);
+        context->setActive(true);
         texture.setSmooth(true);
         
         // mpv_create requires LC_NUMERIC to be set to "C" for some reason, see mpv_create documentation
@@ -53,7 +53,7 @@ namespace QuickMedia {
         if(mpv_opengl_cb_init_gl(mpvGl, nullptr, getProcAddressMpv, nullptr) < 0)
             throw VideoInitializationException("Failed to initialize mpv gl callback func");
         
-        context.setActive(false);
+        context->setActive(false);
         
         seekbar.setFillColor(sf::Color::White);
         seekbar_background.setFillColor(sf::Color(0, 0, 0, 150));
@@ -116,9 +116,10 @@ namespace QuickMedia {
                         if(newTextureBuf)
                             textureBuffer = (sf::Uint8*)newTextureBuf;
                     }
-                    context.setActive(true);
+                    context.reset(new sf::Context(sf::ContextSettings(), w, h));
+                    context->setActive(true);
                     glViewport(0, 0, w, h);
-                    context.setActive(false);
+                    context->setActive(false);
                     resize(desired_size);
                 }
             } else if(mpvEvent->event_id == MPV_EVENT_END_FILE) {
@@ -132,7 +133,7 @@ namespace QuickMedia {
         if(redrawCounter > 0 && textureBuffer) {
             --redrawCounter;
             auto textureSize = texture.getSize();
-            context.setActive(true);
+            context->setActive(true);
             //mpv_render_context_render(mpvGl, params);
             mpv_opengl_cb_draw(mpvGl, 0, textureSize.x, textureSize.y);
             // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
@@ -140,7 +141,7 @@ namespace QuickMedia {
             texture.update(textureBuffer);
             sprite.setTexture(texture, true);
             mpv_opengl_cb_report_flip(mpvGl, 0);
-            context.setActive(false);
+            context->setActive(false);
         }
         window.draw(sprite);
 
