@@ -21,9 +21,11 @@ namespace QuickMedia {
                 auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *title = quickmedia_html_node_get_attribute_value(node, "title");
+                if(href && title) {
                 auto item = std::make_unique<BodyItem>(title);
-                item->url = std::string("https://www.youtube.com") + href;
-                result_items->push_back(std::move(item));
+                    item->url = std::string("https://www.youtube.com") + href;
+                    result_items->push_back(std::move(item));
+                }
             }, &result_items);
 
         cleanup:
@@ -77,5 +79,34 @@ namespace QuickMedia {
 
         iterate_suggestion_result(json_root, text, result_items);
         return SuggestionResult::OK;
+    }
+
+    std::vector<std::unique_ptr<BodyItem>> Youtube::get_related_media(const std::string &url) {
+        std::vector<std::unique_ptr<BodyItem>> result_items;
+
+        std::string website_data;
+        if(download_to_string(url, website_data) != DownloadResult::OK)
+            return result_items;
+
+        QuickMediaHtmlSearch html_search;
+        int result = quickmedia_html_search_init(&html_search, website_data.c_str());
+        if(result != 0)
+            goto cleanup;
+
+        result = quickmedia_html_find_nodes_xpath(&html_search, "//ul[class=\"video-list\"]//div[class=\"content-wrapper\"]/a",
+            [](QuickMediaHtmlNode *node, void *userdata) {
+                auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
+                const char *href = quickmedia_html_node_get_attribute_value(node, "href");
+                // TODO: Also add title for related media
+                if(href) {
+                    auto item = std::make_unique<BodyItem>("");
+                    item->url = std::string("https://www.youtube.com") + href;
+                    result_items->push_back(std::move(item));
+                }
+            }, &result_items);
+
+        cleanup:
+        quickmedia_html_search_deinit(&html_search);
+        return result_items;
     }
 }

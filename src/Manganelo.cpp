@@ -28,9 +28,11 @@ namespace QuickMedia {
                 ItemData *item_data = (ItemData*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *text = quickmedia_html_node_get_text(node);
-                auto item = std::make_unique<BodyItem>(text);
-                item->url = href;
-                item_data->result_items.push_back(std::move(item));
+                if(href && text) {
+                    auto item = std::make_unique<BodyItem>(text);
+                    item->url = href;
+                    item_data->result_items.push_back(std::move(item));
+                }
             }, &item_data);
         if (result != 0)
             goto cleanup;
@@ -39,7 +41,7 @@ namespace QuickMedia {
             [](QuickMediaHtmlNode *node, void *userdata) {
                 ItemData *item_data = (ItemData*)userdata;
                 const char *src = quickmedia_html_node_get_attribute_value(node, "src");
-                if(item_data->item_index < item_data->result_items.size()) {
+                if(src && item_data->item_index < item_data->result_items.size()) {
                     item_data->result_items[item_data->item_index]->thumbnail_url = src;
                     ++item_data->item_index;
                 }

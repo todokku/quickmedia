@@ -253,9 +253,9 @@ namespace QuickMedia {
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
         bool resized = true;
+        sf::Event event;
 
         while (window.isOpen() && current_page == Page::SEARCH_SUGGESTION) {
-            sf::Event event;
             while (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     window.close();
@@ -324,9 +324,9 @@ namespace QuickMedia {
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
         bool resized = true;
+        sf::Event event;
 
         while (window.isOpen() && current_page == Page::SEARCH_RESULT) {
-            sf::Event event;
             while (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     window.close();
@@ -390,11 +390,22 @@ namespace QuickMedia {
             fprintf(stderr, "Failed to create video player!. TODO: Show this to the user");
         }
 
-        bool resized = false;
+        std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(video_url);
+
+        if(video_player) {
+            video_player->onPlaybackEndedCallback = [this, &related_media, &video_player]() {
+                if(related_media.empty())
+                    return;
+                video_player->load_file(related_media.front()->url);
+                related_media = current_plugin->get_related_media(video_url);
+            };
+        }
+
+        bool resized = true;
         sf::Clock resize_timer;
+        sf::Event event;
 
         while (window.isOpen() && current_page == Page::VIDEO_CONTENT) {
-            sf::Event event;
             while (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     window.close();

@@ -16,6 +16,11 @@ namespace QuickMedia {
         return SuggestionResult::OK;
     }
 
+    std::vector<std::unique_ptr<BodyItem>> Plugin::get_related_media(const std::string &url) {
+        (void)url;
+        return {};
+    }
+
     DownloadResult Plugin::download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
         std::vector<const char*> args = { "curl", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L", url.c_str() };
         for(const CommandArg &arg : additional_args) {
