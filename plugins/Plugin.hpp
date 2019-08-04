@@ -7,12 +7,14 @@
 namespace QuickMedia {
     class BodyItem {
     public:
-        BodyItem(const std::string &_title): title(_title) {
+        BodyItem(const std::string &_title): title(_title), visible(true) {
 
         }
 
         std::string title;
-        std::string cover_url;
+        std::string url;
+        std::string thumbnail_url;
+        bool visible;
     };
 
     enum class SearchResult {

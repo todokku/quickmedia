@@ -22,6 +22,7 @@ namespace QuickMedia {
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *title = quickmedia_html_node_get_attribute_value(node, "title");
                 auto item = std::make_unique<BodyItem>(title);
+                item->url = std::string("https://www.youtube.com") + href;
                 result_items->push_back(std::move(item));
             }, &result_items);
 
@@ -30,24 +31,21 @@ namespace QuickMedia {
         return result == 0 ? SearchResult::OK : SearchResult::ERR;
     }
 
-    static void iterate_suggestion_result(const Json::Value &value, std::vector<std::unique_ptr<BodyItem>> &result_items, int &ignore_count) {
+    static void iterate_suggestion_result(const Json::Value &value, const std::string &search_text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
         if(value.isArray()) {
             for(const Json::Value &child : value) {
-                iterate_suggestion_result(child, result_items, ignore_count);
+                iterate_suggestion_result(child, search_text, result_items);
             }
         } else if(value.isString()) {
-            if(ignore_count > 1) {
-                auto item = std::make_unique<BodyItem>(value.asString());
+            std::string title = value.asString();
+            if(title != search_text) {
+                auto item = std::make_unique<BodyItem>(title);
                 result_items.push_back(std::move(item));
             }
-            ++ignore_count;
         }
     }
 
     SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
-        if(text.empty())
-            return SuggestionResult::OK;
-
         std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gl=us&q=";
         url += url_param_encode(text);
 
@@ -77,8 +75,7 @@ namespace QuickMedia {
             return SuggestionResult::ERR;
         }
 
-        int ignore_count = 0;
-        iterate_suggestion_result(json_root, result_items, ignore_count);
+        iterate_suggestion_result(json_root, text, result_items);
         return SuggestionResult::OK;
     }
 }
