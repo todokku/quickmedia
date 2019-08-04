@@ -33,8 +33,8 @@ namespace QuickMedia {
         if(!mpv)
             throw VideoInitializationException("Failed to create mpv handle");
 
-        mpv_set_option_string(mpv, "input-default-bindings", "yes");
-        mpv_set_option_string(mpv, "input-vo-keyboard", "yes");
+        //mpv_set_option_string(mpv, "input-default-bindings", "yes");
+        //mpv_set_option_string(mpv, "input-vo-keyboard", "yes");
         mpv_set_option_string(mpv, "cache-secs", "120");
         mpv_set_option_string(mpv, "demuxer-max-bytes", "20M");
         mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M");

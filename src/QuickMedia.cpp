@@ -184,7 +184,6 @@ namespace QuickMedia {
         //current_plugin = new Manganelo();
         current_plugin = new Youtube();
         search_bar = std::make_unique<SearchBar>(font);
-        page_view_stack.push(current_page);
     }
 
     Program::~Program() {
@@ -244,10 +243,8 @@ namespace QuickMedia {
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
-            if(search_selected_suggestion(body, current_plugin) == SearchResult::OK) {
+            if(search_selected_suggestion(body, current_plugin) == SearchResult::OK)
                 current_page = Page::SEARCH_RESULT;
-                page_view_stack.push(current_page);
-            }
         };
 
         sf::Vector2f body_pos;
@@ -317,7 +314,6 @@ namespace QuickMedia {
                 return;
             video_url = selected_item->url;
             current_page = Page::VIDEO_CONTENT;
-            page_view_stack.push(current_page);
         };
 
         sf::Vector2f body_pos;

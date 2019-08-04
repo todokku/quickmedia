@@ -3,7 +3,6 @@
 #include "SearchBar.hpp"
 #include "Page.hpp"
 #include <vector>
-#include <stack>
 #include <memory>
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
@@ -31,6 +30,5 @@ namespace QuickMedia {
         std::unique_ptr<SearchBar> search_bar;
         Page current_page;
         std::string video_url;
-        std::stack<Page> page_view_stack;
     };
 }
