@@ -6,11 +6,11 @@
 #include <clocale>
 
 namespace QuickMedia {
-    void* getProcAddressMpv(void *funcContext, const char *name) {
+    static void* getProcAddressMpv(void *funcContext, const char *name) {
         return (void*)sf::Context::getFunction(name);
     }
     
-    void onMpvRedraw(void *rawVideo) {
+    static void onMpvRedraw(void *rawVideo) {
         VideoPlayer *video_player = (VideoPlayer*)rawVideo;
         ++video_player->redrawCounter;
     }
@@ -35,6 +35,9 @@ namespace QuickMedia {
 
         mpv_set_option_string(mpv, "input-default-bindings", "yes");
         mpv_set_option_string(mpv, "input-vo-keyboard", "yes");
+        mpv_set_option_string(mpv, "cache-secs", "120");
+        mpv_set_option_string(mpv, "demuxer-max-bytes", "20M");
+        mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M");
         
         if(mpv_initialize(mpv) < 0)
             throw VideoInitializationException("Failed to initialize mpv");
