@@ -395,7 +395,8 @@ namespace QuickMedia {
             video_player->onPlaybackEndedCallback = [this, &related_media, &video_player]() {
                 if(related_media.empty())
                     return;
-                video_player->load_file(related_media.front()->url);
+                video_url = related_media.front()->url;
+                video_player->load_file(video_url);
                 related_media = current_plugin->get_related_media(video_url);
             };
         }
