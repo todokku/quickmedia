@@ -9,7 +9,7 @@ const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
 
 namespace QuickMedia {
-    Body::Body(sf::Font &font) : title_text("", font, 14), selected_item(0) {
+    Body::Body(sf::Font &font) : title_text("", font, 14), selected_item(0), loading_thumbnail(false) {
         title_text.setFillColor(sf::Color::White);
     }
 
@@ -81,21 +81,27 @@ namespace QuickMedia {
         }
     }
 
-    static std::unique_ptr<sf::Texture> load_texture_from_url(const std::string &url) {
-        auto result = std::make_unique<sf::Texture>();
+    std::shared_ptr<sf::Texture> Body::load_thumbnail_from_url(const std::string &url) {
+        auto result = std::make_shared<sf::Texture>();
         result->setSmooth(true);
-        std::string texture_data;
-        if(download_to_string(url, texture_data) == DownloadResult::OK) {
-            if(result->loadFromMemory(texture_data.data(), texture_data.size()))
-                result->generateMipmap();
-        }
+        assert(!loading_thumbnail);
+        loading_thumbnail = true;
+        thumbnail_load_thread = std::thread([this, result, url]() {
+            std::string texture_data;
+            if(download_to_string(url, texture_data) == DownloadResult::OK) {
+                if(result->loadFromMemory(texture_data.data(), texture_data.size()))
+                    result->generateMipmap();
+            }
+            loading_thumbnail = false;
+        });
+        thumbnail_load_thread.detach();
         return result;
     }
 
     // TODO: Skip drawing the rows that are outside the window.
     // TODO: Use a render target for the whole body so all images can be put into one.
     // TODO: Only load images once they are visible on the screen.
-    // TODO: Load images asynchronously to prevent scroll lag and to improve load time of suggestions.
+    // TODO: Load thumbnails with more than one thread.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size) {
         const float font_height = title_text.getCharacterSize() + 8.0f;
         const float image_height = 100.0f;
@@ -129,8 +135,8 @@ namespace QuickMedia {
             float row_height = font_height;
             if(draw_thumbnail) {
                 row_height = image_height;
-                if(!item_thumbnail)
-                    item_thumbnail = load_texture_from_url(item->thumbnail_url);
+                if(!item_thumbnail && !loading_thumbnail)
+                    item_thumbnail = load_thumbnail_from_url(item->thumbnail_url);
             }
 
             sf::Vector2f item_pos = pos;
@@ -152,6 +158,8 @@ namespace QuickMedia {
 
             float text_offset_x = 0.0f;
             if(draw_thumbnail) {
+                // TODO: Verify if this is safe. The thumbnail is being modified in another thread
+                // and it might not be fully finished before the native handle is set?
                 if(item_thumbnail && item_thumbnail->getNativeHandle() != 0) {
                     image.setTexture(*item_thumbnail, true);
                     auto image_size = image.getTexture()->getSize();
@@ -166,6 +174,7 @@ namespace QuickMedia {
                 } else {
                     image_fallback.setPosition(item_pos);
                     window.draw(image_fallback);
+                    text_offset_x = image_fallback.getSize().x;
                 }
             }
 

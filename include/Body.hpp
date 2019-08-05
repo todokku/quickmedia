@@ -4,6 +4,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <thread>
 
 namespace QuickMedia {
     class BodyItem {
@@ -43,6 +44,10 @@ namespace QuickMedia {
         sf::Text title_text;
         int selected_item;
         std::vector<std::unique_ptr<BodyItem>> items;
-        std::vector<std::unique_ptr<sf::Texture>> item_thumbnail_textures;
+        std::vector<std::shared_ptr<sf::Texture>> item_thumbnail_textures;
+        std::thread thumbnail_load_thread;
+    private:
+        std::shared_ptr<sf::Texture> load_thumbnail_from_url(const std::string &url);
+        bool loading_thumbnail;
     };
 }

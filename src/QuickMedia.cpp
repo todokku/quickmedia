@@ -370,7 +370,7 @@ namespace QuickMedia {
 
         sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
         if(image_index == num_images)
-            chapter_text.setString("end");
+            chapter_text.setString("End");
         chapter_text.setFillColor(sf::Color::White);
         sf::RectangleShape chapter_text_background;
         chapter_text_background.setFillColor(sf::Color(0, 0, 0, 150));
