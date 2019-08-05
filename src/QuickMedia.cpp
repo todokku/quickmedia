@@ -311,8 +311,10 @@ namespace QuickMedia {
 
         double overflow_x  = image_size.x - size.x;
         double overflow_y  = image_size.y - size.y;
-        if(overflow_x <= 0.0f && overflow_y <= 0.0f)
+        if(overflow_x <= 0.0f && overflow_y <= 0.0f) {
+            sprite.setScale(1.0f, 1.0f);
             return;
+        }
 
         auto scale = sprite.getScale();
         float scale_ratio = scale.x / scale.y;
@@ -366,15 +368,12 @@ namespace QuickMedia {
         int num_images = 0;
         image_plugin->get_number_of_images(images_url, num_images);
 
-        sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 18);
+        sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
         if(image_index == num_images)
             chapter_text.setString("end");
         chapter_text.setFillColor(sf::Color::White);
         sf::RectangleShape chapter_text_background;
         chapter_text_background.setFillColor(sf::Color(0, 0, 0, 150));
-
-        sf::Clock window_last_focused;
-        bool focused = window.hasFocus();
 
         // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {
@@ -401,51 +400,49 @@ namespace QuickMedia {
                     } else if(event.key.code == sf::Keyboard::Escape) {
                         current_page = Page::EPISODE_LIST;
                     }
-                } else if(event.type == sf::Event::MouseEntered) {
-                    window_last_focused.restart();
-                    focused = true;
-                } else if(event.type == sf::Event::MouseLeft) {
-                    focused = false;
-                } else if(event.type == sf::Event::MouseMoved && focused) {
-                    window_last_focused.restart();
                 }
             }
+
+            const float font_height = chapter_text.getCharacterSize() + 8.0f;
+            const float background_height = font_height + 6.0f;
+
+            sf::Vector2f content_size;
+            content_size.x = window_size.x;
+            content_size.y = window_size.y - background_height;
 
             if(resized) {
                 if(error) {
                     auto bounds = error_message.getLocalBounds();
-                    error_message.setPosition(window_size.x * 0.5f - bounds.width * 0.5f, window_size.y * 0.5f - bounds.height);
+                    error_message.setPosition(content_size.x * 0.5f - bounds.width * 0.5f, content_size.y * 0.5f - bounds.height);
                 } else {
-                    clamp_sprite_to_size(image, window_size);
+                    clamp_sprite_to_size(image, content_size);
                     auto texture_size = image.getTexture()->getSize();
                     auto image_scale = image.getScale();
                     auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
                     image_size.x *= image_scale.x;
                     image_size.y *= image_scale.y;
-                    image.setPosition(std::floor(window_size.x * 0.5f - image_size.x * 0.5f), std::floor(window_size.y * 0.5f - image_size.y * 0.5f));
+                    image.setPosition(std::floor(content_size.x * 0.5f - image_size.x * 0.5f), std::floor(content_size.y * 0.5f - image_size.y * 0.5f));
                 }
             } else {
                 continue;
             }
 
             window.clear(back_color);
+
             if(error) {
                 window.draw(error_message);
             } else {
                 window.draw(image);
             }
-            if(window_last_focused.getElapsedTime().asMilliseconds() < 4000) {
-                float font_height = chapter_text.getCharacterSize() + 8.0f;
-                float background_height = font_height + 20.0f;
 
-                chapter_text_background.setSize(sf::Vector2f(window_size.x, background_height));
-                chapter_text_background.setPosition(0.0f, std::floor(window_size.y - background_height));
-                window.draw(chapter_text_background);
+            chapter_text_background.setSize(sf::Vector2f(window_size.x, background_height));
+            chapter_text_background.setPosition(0.0f, std::floor(window_size.y - background_height));
+            window.draw(chapter_text_background);
 
-                auto text_bounds = chapter_text.getLocalBounds();
-                chapter_text.setPosition(std::floor(window_size.x * 0.5f - text_bounds.width * 0.5f), std::floor(window_size.y - background_height * 0.5f - font_height * 0.5f));
-                window.draw(chapter_text);
-            }
+            auto text_bounds = chapter_text.getLocalBounds();
+            chapter_text.setPosition(std::floor(window_size.x * 0.5f - text_bounds.width * 0.5f), std::floor(window_size.y - background_height * 0.5f - font_height * 0.5f));
+            window.draw(chapter_text);
+
             window.display();
         }
     }
