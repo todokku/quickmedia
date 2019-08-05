@@ -4,6 +4,7 @@
 #include <mpv/opengl_cb.h>
 #include <SFML/OpenGL.hpp>
 #include <clocale>
+#include <cmath>
 
 namespace QuickMedia {
     static void* getProcAddressMpv(void *funcContext, const char *name) {
@@ -124,7 +125,7 @@ namespace QuickMedia {
         auto image_size = sf::Vector2f(video_size.x, video_size.y);
         image_size.x *= image_scale.x;
         image_size.y *= image_scale.y;
-        sprite.setPosition(desired_size.x * 0.5f - image_size.x * 0.5f, desired_size.y * 0.5f - image_size.y * 0.5f);
+        sprite.setPosition(std::floor(desired_size.x * 0.5f - image_size.x * 0.5f), std::floor(desired_size.y * 0.5f - image_size.y * 0.5f));
     }
     
     void VideoPlayer::draw(sf::RenderWindow &window) {

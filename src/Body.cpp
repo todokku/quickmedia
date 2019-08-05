@@ -3,6 +3,7 @@
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <assert.h>
+#include <cmath>
 
 const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
@@ -84,8 +85,10 @@ namespace QuickMedia {
         auto result = std::make_unique<sf::Texture>();
         result->setSmooth(true);
         std::string texture_data;
-        if(download_to_string(url, texture_data) == DownloadResult::OK)
-            result->loadFromMemory(texture_data.data(), texture_data.size());
+        if(download_to_string(url, texture_data) == DownloadResult::OK) {
+            if(result->loadFromMemory(texture_data.data(), texture_data.size()))
+                result->generateMipmap();
+        }
         return result;
     }
 
@@ -141,6 +144,8 @@ namespace QuickMedia {
                 item_background.setFillColor(sf::Color(38, 40, 42));
             }
 
+            item_pos.x = std::floor(item_pos.x);
+            item_pos.y = std::floor(item_pos.y);
             item_background.setPosition(item_pos);
             item_background.setSize(sf::Vector2f(size.x, row_height));
             window.draw(item_background);
@@ -165,7 +170,7 @@ namespace QuickMedia {
             }
 
             title_text.setString(item->title);
-            title_text.setPosition(item_pos.x + text_offset_x + 10.0f, item_pos.y);
+            title_text.setPosition(std::floor(item_pos.x + text_offset_x + 10.0f), std::floor(item_pos.y));
             window.draw(title_text);
 
             pos.y += row_height + 10.0f;

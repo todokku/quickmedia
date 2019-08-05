@@ -7,6 +7,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window/Event.hpp>
 #include <assert.h>
+#include <cmath>
 
 const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
@@ -421,7 +422,7 @@ namespace QuickMedia {
                     auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
                     image_size.x *= image_scale.x;
                     image_size.y *= image_scale.y;
-                    image.setPosition(window_size.x * 0.5f - image_size.x * 0.5f, window_size.y * 0.5f - image_size.y * 0.5f);
+                    image.setPosition(std::floor(window_size.x * 0.5f - image_size.x * 0.5f), std::floor(window_size.y * 0.5f - image_size.y * 0.5f));
                 }
             }
 
