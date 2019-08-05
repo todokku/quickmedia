@@ -503,14 +503,14 @@ namespace QuickMedia {
                 image_texture.setSmooth(true);
                 image.setTexture(image_texture, true);
             } else {
-                error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index));
+                error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index + 1));
             }
         } else if(image_result == ImageResult::END) {
-            // TODO: Better error message, with chapter name
+            // TODO: Improve this message
             error_message.setString("End of chapter");
         } else {
             // TODO: Convert ImageResult error to a string and show to user
-            error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index));
+            error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index + 1));
         }
         image_data.resize(0);
 
@@ -518,8 +518,20 @@ namespace QuickMedia {
         bool resized = true;
         sf::Event event;
 
-        // TODO: Show current page / number of pages.
-        // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some is skipped)
+        int num_images = 0;
+        image_plugin->get_number_of_images(images_url, num_images);
+
+        sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 18);
+        if(image_index == num_images)
+            chapter_text.setString("end");
+        chapter_text.setFillColor(sf::Color::White);
+        sf::RectangleShape chapter_text_background;
+        chapter_text_background.setFillColor(sf::Color(0, 0, 0, 150));
+
+        sf::Clock window_last_focused;
+        bool focused = window.hasFocus();
+
+        // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {
             while (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
@@ -537,13 +549,20 @@ namespace QuickMedia {
                             return;
                         }
                     } else if(event.key.code == sf::Keyboard::Down) {
-                        if(!error) {
+                        if(image_index < num_images) {
                             ++image_index;
                             return;
                         }
                     } else if(event.key.code == sf::Keyboard::Escape) {
                         current_page = Page::EPISODE_LIST;
                     }
+                } else if(event.type == sf::Event::MouseEntered) {
+                    window_last_focused.restart();
+                    focused = true;
+                } else if(event.type == sf::Event::MouseLeft) {
+                    focused = false;
+                } else if(event.type == sf::Event::MouseMoved && focused) {
+                    window_last_focused.restart();
                 }
             }
 
@@ -567,6 +586,18 @@ namespace QuickMedia {
                 window.draw(error_message);
             } else {
                 window.draw(image);
+            }
+            if(window_last_focused.getElapsedTime().asMilliseconds() < 4000) {
+                float font_height = chapter_text.getCharacterSize() + 8.0f;
+                float background_height = font_height + 20.0f;
+
+                chapter_text_background.setSize(sf::Vector2f(window_size.x, background_height));
+                chapter_text_background.setPosition(0.0f, window_size.y - background_height);
+                window.draw(chapter_text_background);
+
+                auto text_bounds = chapter_text.getLocalBounds();
+                chapter_text.setPosition(window_size.x * 0.5f - text_bounds.width * 0.5f, window_size.y - background_height * 0.5f - text_bounds.height * 0.5f);
+                window.draw(chapter_text);
             }
             window.display();
         }

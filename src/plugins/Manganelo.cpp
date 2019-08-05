@@ -95,13 +95,9 @@ namespace QuickMedia {
     }
 
     ImageResult Manganelo::get_image_by_index(const std::string &url, int index, std::string &image_data) {
-        if(url != last_chapter_url) {
-            last_chapter_image_urls.clear();
-            ImageResult image_result = get_image_urls_for_chapter(url, last_chapter_image_urls);
-            if(image_result != ImageResult::OK)
-                return image_result;
-            last_chapter_url = url;
-        }
+        ImageResult image_result = get_image_urls_for_chapter(url);
+        if(image_result != ImageResult::OK)
+            return image_result;
 
         int num_images = last_chapter_image_urls.size();
         if(index < 0 || index >= num_images)
@@ -120,7 +116,22 @@ namespace QuickMedia {
         }
     }
 
-    ImageResult Manganelo::get_image_urls_for_chapter(const std::string &url, std::vector<std::string> &urls) {
+    ImageResult Manganelo::get_number_of_images(const std::string &url, int &num_images) {
+        num_images = 0;
+        ImageResult image_result = get_image_urls_for_chapter(url);
+        if(image_result != ImageResult::OK)
+            return image_result;
+
+        num_images = last_chapter_image_urls.size();
+        return ImageResult::OK;
+    }
+
+    ImageResult Manganelo::get_image_urls_for_chapter(const std::string &url) {
+        if(url == last_chapter_url)
+            return ImageResult::OK;
+
+        last_chapter_image_urls.clear();
+
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
             return ImageResult::NET_ERR;
@@ -136,10 +147,12 @@ namespace QuickMedia {
                 const char *src = quickmedia_html_node_get_attribute_value(node, "src");
                 if(src)
                     urls->push_back(src);
-            }, &urls);
+            }, &last_chapter_image_urls);
 
         cleanup:
         quickmedia_html_search_deinit(&html_search);
+        if(result == 0)
+            last_chapter_url = url;
         return result == 0 ? ImageResult::OK : ImageResult::ERR;
     }
 }
