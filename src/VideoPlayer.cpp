@@ -93,25 +93,38 @@ namespace QuickMedia {
         sprite.setPosition(x, y);
     }
 
+    // TODO: Fix this, it's incorrect
+    static void wrap_sprite_to_size(sf::Sprite &sprite, sf::Vector2i texture_size, const sf::Vector2f &size) {
+        auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
+
+        double overflow_x  = image_size.x - size.x;
+        double overflow_y  = image_size.y - size.y;
+
+        auto scale = sprite.getScale();
+        float scale_ratio = scale.x / scale.y;
+        bool reverse = overflow_x < 0.0f && overflow_y < 0.0f;
+
+        if((reverse && overflow_x * scale_ratio < overflow_y) || overflow_x * scale_ratio > overflow_y) {
+            float overflow_ratio = overflow_x / image_size.x;
+            float scale_x = 1.0f - overflow_ratio;
+            sprite.setScale(scale_x, scale_x * scale_ratio);
+        } else {
+            float overflow_ratio = overflow_y / image_size.y;
+            float scale_y = 1.0f - overflow_ratio;
+            sprite.setScale(scale_y * scale_ratio, scale_y);
+        }
+    }
+
     void VideoPlayer::resize(const sf::Vector2i &size) {
         desired_size = size;
         if(!textureBuffer)
             return;
-        float video_ratio = (double)video_size.x / (double)video_size.y;
-        float scale_x = 1.0f;
-        float scale_y = 1.0f;
-        if(video_ratio >= 0.0f) {
-            double ratio_x = (double)size.x / (double)video_size.x;
-            scale_x = ratio_x;
-            scale_y = ratio_x;
-            sprite.setPosition(0.0f, size.y * 0.5f - video_size.y * scale_y * 0.5f);
-        } else {
-            double ratio_y = (double)size.y / (double)video_size.y;
-            scale_x = ratio_y;
-            scale_y = ratio_y;
-            sprite.setPosition(size.x * 0.5f - video_size.x * scale_x * 0.5f, 0.0f);
-        }
-        sprite.setScale(scale_x, scale_y);
+        wrap_sprite_to_size(sprite, video_size, sf::Vector2f(desired_size.x, desired_size.y));
+        auto image_scale = sprite.getScale();
+        auto image_size = sf::Vector2f(video_size.x, video_size.y);
+        image_size.x *= image_scale.x;
+        image_size.y *= image_scale.y;
+        sprite.setPosition(desired_size.x * 0.5f - image_size.x * 0.5f, desired_size.y * 0.5f - image_size.y * 0.5f);
     }
     
     void VideoPlayer::draw(sf::RenderWindow &window) {

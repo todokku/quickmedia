@@ -458,6 +458,31 @@ namespace QuickMedia {
         }
     }
 
+    // TODO: Add option to scale image to window size.
+    // TODO: Fix scaling, it'ss a bit broken
+    static void clamp_sprite_to_size(sf::Sprite &sprite, const sf::Vector2f &size) {
+        auto texture_size = sprite.getTexture()->getSize();
+        auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
+
+        double overflow_x  = image_size.x - size.x;
+        double overflow_y  = image_size.y - size.y;
+        if(overflow_x <= 0.0f && overflow_y <= 0.0f)
+            return;
+
+        auto scale = sprite.getScale();
+        float scale_ratio = scale.x / scale.y;
+
+        if(overflow_x * scale_ratio > overflow_y) {
+            float overflow_ratio = overflow_x / image_size.x;
+            float scale_x = 1.0f - overflow_ratio;
+            sprite.setScale(scale_x, scale_x * scale_ratio);
+        } else {
+            float overflow_ratio = overflow_y / image_size.y;
+            float scale_y = 1.0f - overflow_ratio;
+            sprite.setScale(scale_y * scale_ratio, scale_y);
+        }
+    }
+
     void Program::image_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
@@ -527,12 +552,12 @@ namespace QuickMedia {
                     auto bounds = error_message.getLocalBounds();
                     error_message.setPosition(window_size.x * 0.5f - bounds.width * 0.5f, window_size.y * 0.5f - bounds.height);
                 } else {
+                    clamp_sprite_to_size(image, window_size);
                     auto texture_size = image.getTexture()->getSize();
                     auto image_scale = image.getScale();
                     auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
                     image_size.x *= image_scale.x;
                     image_size.y *= image_scale.y;
-
                     image.setPosition(window_size.x * 0.5f - image_size.x * 0.5f, window_size.y * 0.5f - image_size.y * 0.5f);
                 }
             }

@@ -96,7 +96,6 @@ namespace QuickMedia {
 
     ImageResult Manganelo::get_image_by_index(const std::string &url, int index, std::string &image_data) {
         if(url != last_chapter_url) {
-            printf("Get list of image urls for chapter: %s\n", url.c_str());
             last_chapter_image_urls.clear();
             ImageResult image_result = get_image_urls_for_chapter(url, last_chapter_image_urls);
             if(image_result != ImageResult::OK)
