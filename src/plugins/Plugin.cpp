@@ -1,5 +1,5 @@
-#include "../plugins/Plugin.hpp"
-#include "../include/Program.h"
+#include "../../plugins/Plugin.hpp"
+#include "../../include/Program.h"
 #include <sstream>
 #include <iomanip>
 
@@ -21,7 +21,7 @@ namespace QuickMedia {
         return {};
     }
 
-    DownloadResult Plugin::download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
+    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
         std::vector<const char*> args = { "curl", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L", url.c_str() };
         for(const CommandArg &arg : additional_args) {
             args.push_back(arg.option.c_str());

@@ -1,23 +1,12 @@
 #pragma once
 
 #include "../include/Page.hpp"
+#include "../include/Body.hpp"
 #include <string>
 #include <vector>
 #include <memory>
 
 namespace QuickMedia {
-    class BodyItem {
-    public:
-        BodyItem(const std::string &_title): title(_title), visible(true) {
-
-        }
-
-        std::string title;
-        std::string url;
-        std::string thumbnail_url;
-        bool visible;
-    };
-
     enum class SearchResult {
         OK,
         ERR,
@@ -48,6 +37,8 @@ namespace QuickMedia {
         std::string value;
     };
 
+    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
+
     class Plugin {
     public:
         virtual ~Plugin() = default;
@@ -56,7 +47,6 @@ namespace QuickMedia {
         virtual SuggestionResult update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items);
         virtual std::vector<std::unique_ptr<BodyItem>> get_related_media(const std::string &url);
     protected:
-        DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
         std::string url_param_encode(const std::string &param) const;
     };
 }

@@ -85,6 +85,9 @@ namespace QuickMedia {
                         if(name_str != text) {
                             auto item = std::make_unique<BodyItem>(name_str);
                             item->url = "https://manganelo.com/manga/" + url_param_encode(nameunsigned.asString());
+                            Json::Value image = child.get("image", "");
+                            if(image.isString() && image.asCString()[0] != '\0')
+                                item->thumbnail_url = image.asString();
                             result_items.push_back(std::move(item));
                         }
                     }
