@@ -5,6 +5,8 @@ namespace QuickMedia {
         EXIT,
         SEARCH_SUGGESTION,
         SEARCH_RESULT,
-        VIDEO_CONTENT
+        VIDEO_CONTENT,
+        EPISODE_LIST,
+        IMAGES
     };
 }

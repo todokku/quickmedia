@@ -173,7 +173,8 @@ namespace QuickMedia {
         window_size(800, 600),
         body(nullptr),
         current_plugin(nullptr),
-        current_page(Page::SEARCH_SUGGESTION)
+        current_page(Page::SEARCH_SUGGESTION),
+        image_index(0)
     {
         window.setVerticalSyncEnabled(true);
         if(!font.loadFromFile("fonts/Lato-Regular.ttf")) {
@@ -181,8 +182,8 @@ namespace QuickMedia {
             abort();
         }
         body = new Body(font);
-        //current_plugin = new Manganelo();
-        current_plugin = new Youtube();
+        current_plugin = new Manganelo();
+        //current_plugin = new Youtube();
         search_bar = std::make_unique<SearchBar>(font);
     }
 
@@ -191,14 +192,15 @@ namespace QuickMedia {
         delete current_plugin;
     }
 
-    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin) {
+    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page) {
         BodyItem *selected_item = body->get_selected();
         if(!selected_item)
             return SearchResult::ERR;
 
         std::string selected_item_title = selected_item->title;
+        std::string selected_item_url = selected_item->url;
         body->clear_items();
-        SearchResult search_result = plugin->search(selected_item_title, body->items);
+        SearchResult search_result = plugin->search(!selected_item_url.empty() ? selected_item_url : selected_item_title, body->items, next_page);
         body->reset_selected();
         return search_result;
     }
@@ -208,7 +210,6 @@ namespace QuickMedia {
         if(text.isEmpty())
             return;
 
-        body->items.push_back(std::make_unique<BodyItem>(text));
         SuggestionResult suggestion_result = plugin->update_search_suggestions(text, body->items);
         body->clamp_selection();
     }
@@ -217,7 +218,8 @@ namespace QuickMedia {
         while(window.isOpen()) {
             switch(current_page) {
                 case Page::EXIT:
-                    return;
+                    window.close();
+                    break;
                 case Page::SEARCH_SUGGESTION:
                     search_suggestion_page();
                     break;
@@ -227,14 +229,40 @@ namespace QuickMedia {
                 case Page::VIDEO_CONTENT:
                     video_content_page();
                     break;
+                case Page::EPISODE_LIST:
+                    episode_list_page();
+                    break;
+                case Page::IMAGES:
+                    image_page();
+                    break;
                 default:
                     return;
             }
         }
     }
 
-    void Program::base_event_handler(sf::Event &event) {
-
+    void Program::base_event_handler(sf::Event &event, Page previous_page) {
+        if (event.type == sf::Event::Closed) {
+            current_page = Page::EXIT;
+        } else if(event.type == sf::Event::Resized) {
+            window_size.x = event.size.width;
+            window_size.y = event.size.height;
+            sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
+            window.setView(sf::View(visible_area));
+        } else if(event.type == sf::Event::KeyPressed) {
+            if(event.key.code == sf::Keyboard::Up) {
+                body->select_previous_item();
+            } else if(event.key.code == sf::Keyboard::Down) {
+                body->select_next_item();
+            } else if(event.key.code == sf::Keyboard::Escape) {
+                current_page = previous_page;
+                body->clear_items();
+                body->reset_selected();
+                search_bar->clear();
+            }
+        } else if(event.type == sf::Event::TextEntered) {
+            search_bar->onTextEntered(event.text.unicode);
+        }
     }
 
     void Program::search_suggestion_page() {
@@ -243,8 +271,9 @@ namespace QuickMedia {
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
-            if(search_selected_suggestion(body, current_plugin) == SearchResult::OK)
-                current_page = Page::SEARCH_RESULT;
+            Page next_page;
+            if(search_selected_suggestion(body, current_plugin, next_page) == SearchResult::OK)
+                current_page = next_page;
         };
 
         sf::Vector2f body_pos;
@@ -252,29 +281,11 @@ namespace QuickMedia {
         bool resized = true;
         sf::Event event;
 
-        while (window.isOpen() && current_page == Page::SEARCH_SUGGESTION) {
+        while (current_page == Page::SEARCH_SUGGESTION) {
             while (window.pollEvent(event)) {
-                if (event.type == sf::Event::Closed) {
-                    window.close();
-                    current_page = Page::EXIT;
-                } else if(event.type == sf::Event::Resized) {
-                    window_size.x = event.size.width;
-                    window_size.y = event.size.height;
-                    sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
-                    window.setView(sf::View(visible_area));
+                base_event_handler(event, Page::EXIT);
+                if(event.type == sf::Event::Resized)
                     resized = true;
-                } else if(event.type == sf::Event::KeyPressed) {
-                    if(event.key.code == sf::Keyboard::Up) {
-                        body->select_previous_item();
-                    } else if(event.key.code == sf::Keyboard::Down) {
-                        body->select_next_item();
-                    } else if(event.key.code == sf::Keyboard::Escape) {
-                        current_page = Page::EXIT;
-                        window.close();
-                    }
-                } else if(event.type == sf::Event::TextEntered) {
-                    search_bar->onTextEntered(event.text.unicode);
-                }
             }
 
             if(resized) {
@@ -321,31 +332,9 @@ namespace QuickMedia {
         bool resized = true;
         sf::Event event;
 
-        while (window.isOpen() && current_page == Page::SEARCH_RESULT) {
+        while (current_page == Page::SEARCH_RESULT) {
             while (window.pollEvent(event)) {
-                if (event.type == sf::Event::Closed) {
-                    window.close();
-                    current_page = Page::EXIT;
-                } else if(event.type == sf::Event::Resized) {
-                    window_size.x = event.size.width;
-                    window_size.y = event.size.height;
-                    sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
-                    window.setView(sf::View(visible_area));
-                    resized = true;
-                } else if(event.type == sf::Event::KeyPressed) {
-                    if(event.key.code == sf::Keyboard::Up) {
-                        body->select_previous_item();
-                    } else if(event.key.code == sf::Keyboard::Down) {
-                        body->select_next_item();
-                    } else if(event.key.code == sf::Keyboard::Escape) {
-                        current_page = Page::SEARCH_SUGGESTION;
-                        body->clear_items();
-                        body->reset_selected();
-                        search_bar->clear();
-                    }
-                } else if(event.type == sf::Event::TextEntered) {
-                    search_bar->onTextEntered(event.text.unicode);
-                }
+                base_event_handler(event, Page::SEARCH_SUGGESTION);
             }
 
             if(resized) {
@@ -400,31 +389,160 @@ namespace QuickMedia {
         sf::Clock resize_timer;
         sf::Event event;
 
-        while (window.isOpen() && current_page == Page::VIDEO_CONTENT) {
+        while (current_page == Page::VIDEO_CONTENT) {
             while (window.pollEvent(event)) {
-                if (event.type == sf::Event::Closed) {
-                    window.close();
-                    current_page = Page::EXIT;
-                } else if(event.type == sf::Event::Resized) {
-                    window_size.x = event.size.width;
-                    window_size.y = event.size.height;
-                    sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
-                    window.setView(sf::View(visible_area));
+                base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized) {
                     if(video_player)
                         video_player->resize(sf::Vector2i(window_size.x, window_size.y));
-                } else if(event.type == sf::Event::KeyPressed) {
-                    if(event.key.code == sf::Keyboard::Escape) {
-                        current_page = Page::SEARCH_SUGGESTION;
-                        body->clear_items();
-                        body->reset_selected();
-                        search_bar->clear();
-                    }
                 }
             }
 
             window.clear();
             if(video_player)
                 video_player->draw(window);
+            window.display();
+        }
+    }
+
+    void Program::episode_list_page() {
+        search_bar->onTextUpdateCallback = [this](const std::string &text) {
+            body->filter_search_fuzzy(text);
+            body->clamp_selection();
+        };
+
+        search_bar->onTextSubmitCallback = [this](const std::string &text) {
+            BodyItem *selected_item = body->get_selected();
+            if(!selected_item)
+                return;
+
+            images_url = selected_item->url;
+            image_index = 0;
+            current_page = Page::IMAGES;
+        };
+
+        sf::Vector2f body_pos;
+        sf::Vector2f body_size;
+        bool resized = true;
+        sf::Event event;
+
+        while (current_page == Page::EPISODE_LIST) {
+            while (window.pollEvent(event)) {
+                base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized)
+                    resized = true;
+            }
+
+            if(resized) {
+                search_bar->onWindowResize(window_size);
+
+                float body_padding_horizontal = 50.0f;
+                float body_padding_vertical = 50.0f;
+                float body_width = window_size.x - body_padding_horizontal * 2.0f;
+                if(body_width < 400) {
+                    body_width = window_size.x;
+                    body_padding_horizontal = 0.0f;
+                }
+
+                float search_bottom = search_bar->getBottom();
+                body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
+                body_size = sf::Vector2f(body_width, window_size.y);
+            }
+
+            search_bar->update();
+
+            window.clear(back_color);
+            body->draw(window, body_pos, body_size);
+            search_bar->draw(window);
+            window.display();
+        }
+    }
+
+    void Program::image_page() {
+        search_bar->onTextUpdateCallback = nullptr;
+        search_bar->onTextSubmitCallback = nullptr;
+
+        sf::Texture image_texture;
+        sf::Sprite image;
+        sf::Text error_message("", font, 30);
+        error_message.setFillColor(sf::Color::White);
+
+        Manganelo *image_plugin = static_cast<Manganelo*>(current_plugin);
+        std::string image_data;
+
+        // TODO: Optimize this somehow. One image alone uses more than 20mb ram! Total ram usage for viewing one image
+        // becomes 40mb (private memory, almost 100mb in total!) Unacceptable!
+        ImageResult image_result = image_plugin->get_image_by_index(images_url, image_index, image_data);
+        if(image_result == ImageResult::OK) {
+            if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
+                image_texture.setSmooth(true);
+                image.setTexture(image_texture, true);
+            } else {
+                error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index));
+            }
+        } else if(image_result == ImageResult::END) {
+            // TODO: Better error message, with chapter name
+            error_message.setString("End of chapter");
+        } else {
+            // TODO: Convert ImageResult error to a string and show to user
+            error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index));
+        }
+        image_data.resize(0);
+
+        bool error = !error_message.getString().isEmpty();
+        bool resized = true;
+        sf::Event event;
+
+        // TODO: Show current page / number of pages.
+        // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some is skipped)
+        while (current_page == Page::IMAGES) {
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed) {
+                    current_page = Page::EXIT;
+                } else if(event.type == sf::Event::Resized) {
+                    window_size.x = event.size.width;
+                    window_size.y = event.size.height;
+                    sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
+                    window.setView(sf::View(visible_area));
+                    resized = true;
+                } else if(event.type == sf::Event::KeyPressed) {
+                    if(event.key.code == sf::Keyboard::Up) {
+                        if(image_index > 0) {
+                            --image_index;
+                            return;
+                        }
+                    } else if(event.key.code == sf::Keyboard::Down) {
+                        if(!error) {
+                            ++image_index;
+                            return;
+                        }
+                    } else if(event.key.code == sf::Keyboard::Escape) {
+                        current_page = Page::EPISODE_LIST;
+                    }
+                }
+            }
+
+            if(resized) {
+                if(error) {
+                    auto bounds = error_message.getLocalBounds();
+                    error_message.setPosition(window_size.x * 0.5f - bounds.width * 0.5f, window_size.y * 0.5f - bounds.height);
+                } else {
+                    auto texture_size = image.getTexture()->getSize();
+                    auto image_scale = image.getScale();
+                    auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
+                    image_size.x *= image_scale.x;
+                    image_size.y *= image_scale.y;
+
+                    image.setPosition(window_size.x * 0.5f - image_size.x * 0.5f, window_size.y * 0.5f - image_size.y * 0.5f);
+                }
+            }
+
+            window.clear(back_color);
+            if(error) {
+                window.draw(error_message);
+            } else {
+                window.draw(image);
+            }
             window.display();
         }
     }

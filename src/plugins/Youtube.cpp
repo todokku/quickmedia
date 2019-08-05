@@ -1,4 +1,4 @@
-#include "../plugins/Youtube.hpp"
+#include "../../plugins/Youtube.hpp"
 #include <quickmedia/HtmlSearch.h>
 #include <json/reader.h>
 #include <string.h>
@@ -8,7 +8,8 @@ namespace QuickMedia {
         return strncmp(str, begin_with, strlen(begin_with)) == 0;
     }
 
-    SearchResult Youtube::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+    SearchResult Youtube::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) {
+        next_page = Page::SEARCH_RESULT;
         std::string url = "https://youtube.com/results?search_query=";
         url += url_param_encode(text);
 
@@ -54,6 +55,7 @@ namespace QuickMedia {
     }
 
     SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+        result_items.push_back(std::make_unique<BodyItem>(text));
         std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gl=us&q=";
         url += url_param_encode(text);
 

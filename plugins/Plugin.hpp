@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../include/Page.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -35,6 +36,13 @@ namespace QuickMedia {
         NET_ERR
     };
 
+    enum class ImageResult {
+        OK,
+        END,
+        ERR,
+        NET_ERR
+    };
+
     struct CommandArg {
         std::string option;
         std::string value;
@@ -44,7 +52,7 @@ namespace QuickMedia {
     public:
         virtual ~Plugin() = default;
 
-        virtual SearchResult search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) = 0;
+        virtual SearchResult search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) = 0;
         virtual SuggestionResult update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items);
         virtual std::vector<std::unique_ptr<BodyItem>> get_related_media(const std::string &url);
     protected:

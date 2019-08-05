@@ -66,7 +66,15 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
 
         int exit_status = WEXITSTATUS(status);
         if(exit_status != 0) {
-            fprintf(stderr, "Failed to execute program, exit status %d\n", exit_status);
+            fprintf(stderr, "Failed to execute program (");
+            const char **arg = args;
+            while(*arg) {
+                if(arg != args)
+                    fputc(' ', stderr);
+                fprintf(stderr, "'%s'", *arg);
+                ++arg;
+            }
+            fprintf(stderr, "), exit status %d\n", exit_status);
             result = -exit_status;
             goto cleanup;
         }
