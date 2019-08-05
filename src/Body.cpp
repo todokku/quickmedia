@@ -95,7 +95,7 @@ namespace QuickMedia {
     // TODO: Load images asynchronously to prevent scroll lag and to improve load time of suggestions.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size) {
         const float font_height = title_text.getCharacterSize() + 8.0f;
-        const float image_height = 50.0f;
+        const float image_height = 100.0f;
 
         sf::RectangleShape image_fallback(sf::Vector2f(50, image_height));
         image_fallback.setFillColor(sf::Color::White);
