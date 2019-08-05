@@ -1,4 +1,5 @@
 #include "../include/SearchBar.hpp"
+#include <cmath>
 
 const sf::Color text_placeholder_color(255, 255, 255, 100);
 const sf::Color front_color(43, 45, 47);
@@ -39,9 +40,9 @@ namespace QuickMedia {
 
     void SearchBar::onWindowResize(const sf::Vector2f &window_size) {
         float font_height = text.getCharacterSize() + 8.0f;
-        float rect_height = font_height + background_margin_vertical * 2.0f;
-        background.setSize(sf::Vector2f(window_size.x - padding_horizontal * 2.0f, rect_height));
-        text.setPosition(padding_horizontal + background_margin_horizontal, padding_vertical + background_margin_vertical);
+        float rect_height = std::floor(font_height + background_margin_vertical * 2.0f);
+        background.setSize(sf::Vector2f(std::floor(window_size.x - padding_horizontal * 2.0f), rect_height));
+        text.setPosition(std::floor(padding_horizontal + background_margin_horizontal), std::floor(padding_vertical + background_margin_vertical));
     }
 
     void SearchBar::onTextEntered(sf::Uint32 codepoint) {

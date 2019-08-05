@@ -424,6 +424,8 @@ namespace QuickMedia {
                     image_size.y *= image_scale.y;
                     image.setPosition(std::floor(window_size.x * 0.5f - image_size.x * 0.5f), std::floor(window_size.y * 0.5f - image_size.y * 0.5f));
                 }
+            } else {
+                continue;
             }
 
             window.clear(back_color);
@@ -437,11 +439,11 @@ namespace QuickMedia {
                 float background_height = font_height + 20.0f;
 
                 chapter_text_background.setSize(sf::Vector2f(window_size.x, background_height));
-                chapter_text_background.setPosition(0.0f, window_size.y - background_height);
+                chapter_text_background.setPosition(0.0f, std::floor(window_size.y - background_height));
                 window.draw(chapter_text_background);
 
                 auto text_bounds = chapter_text.getLocalBounds();
-                chapter_text.setPosition(window_size.x * 0.5f - text_bounds.width * 0.5f, window_size.y - background_height * 0.5f - text_bounds.height * 0.5f);
+                chapter_text.setPosition(std::floor(window_size.x * 0.5f - text_bounds.width * 0.5f), std::floor(window_size.y - background_height * 0.5f - font_height * 0.5f));
                 window.draw(chapter_text);
             }
             window.display();

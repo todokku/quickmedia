@@ -15,3 +15,4 @@ Keep track of content that has been viewed so the user can return to where they 
 For manga, view the next chapter when reaching the end of a chapter.
 Make network requests asynchronous to not freeze gui when navigating. Also have loading animation.
 Retain search text when navigating back.
+Resizing window doesn't always scale images correctly, they stay underscaled.
