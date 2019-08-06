@@ -49,6 +49,7 @@ namespace QuickMedia {
         std::vector<std::unique_ptr<BodyItem>> items;
         std::vector<std::shared_ptr<sf::Texture>> item_thumbnail_textures;
         std::thread thumbnail_load_thread;
+        bool draw_thumbnails;
     private:
         std::shared_ptr<sf::Texture> load_thumbnail_from_url(const std::string &url);
         bool loading_thumbnail;

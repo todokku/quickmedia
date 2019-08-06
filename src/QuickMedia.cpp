@@ -89,18 +89,23 @@ namespace QuickMedia {
                     window.close();
                     break;
                 case Page::SEARCH_SUGGESTION:
+                    body->draw_thumbnails = true;
                     search_suggestion_page();
                     break;
                 case Page::SEARCH_RESULT:
+                    body->draw_thumbnails = true;
                     search_result_page();
                     break;
                 case Page::VIDEO_CONTENT:
+                    body->draw_thumbnails = false;
                     video_content_page();
                     break;
                 case Page::EPISODE_LIST:
+                    body->draw_thumbnails = false;
                     episode_list_page();
                     break;
                 case Page::IMAGES: {
+                    body->draw_thumbnails = false;
                     window.setKeyRepeatEnabled(false);
                     image_page();
                     window.setKeyRepeatEnabled(true);
@@ -216,7 +221,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
             }
 
             search_bar->update();
@@ -265,7 +270,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
             }
 
             search_bar->update();
@@ -409,7 +414,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
             }
 
             search_bar->update();

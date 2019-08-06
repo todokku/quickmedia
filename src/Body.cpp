@@ -13,6 +13,7 @@ namespace QuickMedia {
         title_text("", font, 14),
         progress_text("", font, 14),
         selected_item(0),
+        draw_thumbnails(false),
         loading_thumbnail(false)
     {
         title_text.setFillColor(sf::Color::White);
@@ -134,24 +135,41 @@ namespace QuickMedia {
         const float selected_border_width = 5.0f;
 
         int num_items = items.size();
+        if(num_items == 0)
+            return;
+
         if((int)item_thumbnail_textures.size() != num_items) {
             // First unload all textures, then prepare to load new textures
             item_thumbnail_textures.resize(0);
             item_thumbnail_textures.resize(num_items);
         }
 
-        for(int i = 0; i < num_items; ++i) {
+        float row_height = font_height;
+        if(draw_thumbnails)
+            row_height = image_height;
+        const float total_row_height = row_height + 10.0f;
+        const int max_visible_rows = size.y / total_row_height - 1;
+
+        // Find the starting row that can be drawn to make selected row visible as well
+        int visible_rows = 0;
+        int first_visible_item = selected_item;
+        for(; first_visible_item >= 0 && visible_rows < max_visible_rows; --first_visible_item) {
+            auto &item = items[first_visible_item];
+            if(item->visible)
+                ++visible_rows;
+        }
+
+        for(int i = first_visible_item + 1; i < num_items; ++i) {
             const auto &item = items[i];
             assert(items.size() == item_thumbnail_textures.size());
             auto &item_thumbnail = item_thumbnail_textures[i];
             if(!item->visible)
                 continue;
 
-            bool draw_thumbnail = !item->thumbnail_url.empty();
             float row_height = font_height;
-            if(draw_thumbnail) {
+            if(draw_thumbnails) {
                 row_height = image_height;
-                if(!item_thumbnail && !loading_thumbnail)
+                if(!item->thumbnail_url.empty() && !item_thumbnail && !loading_thumbnail)
                     item_thumbnail = load_thumbnail_from_url(item->thumbnail_url);
             }
 
@@ -173,7 +191,7 @@ namespace QuickMedia {
             window.draw(item_background);
 
             float text_offset_x = 0.0f;
-            if(draw_thumbnail) {
+            if(draw_thumbnails) {
                 // TODO: Verify if this is safe. The thumbnail is being modified in another thread
                 // and it might not be fully finished before the native handle is set?
                 if(item_thumbnail && item_thumbnail->getNativeHandle() != 0) {
@@ -211,7 +229,7 @@ namespace QuickMedia {
                 }
             }
 
-            pos.y += row_height + 10.0f;
+            pos.y += total_row_height;
         }
     }
 
