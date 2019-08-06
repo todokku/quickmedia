@@ -20,6 +20,8 @@ namespace QuickMedia {
         text.setFillColor(text_placeholder_color);
         background.setFillColor(front_color);
         background.setPosition(padding_horizontal, padding_vertical);
+        //background.setOutlineThickness(1.0f);
+        //background.setOutlineColor(sf::Color(63, 65, 67));
     }
 
     void SearchBar::draw(sf::RenderWindow &window) {

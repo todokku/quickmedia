@@ -33,6 +33,29 @@ namespace QuickMedia {
         return DownloadResult::OK;
     }
 
+    static bool is_whitespace(char c) {
+        return c == ' ' || c == '\n' || c == '\t' || c == '\v';
+    }
+
+    std::string strip(const std::string &str) {
+        if(str.empty())
+            return str;
+
+        int start = 0;
+        for(; start < (int)str.size(); ++start) {
+            if(!is_whitespace(str[start]))
+                break;
+        }
+
+        int end = str.size() - 1;
+        for(; end >= start; --end) {
+            if(!is_whitespace(str[end]))
+                break;
+        }
+
+        return str.substr(start, end - start + 1);
+    }
+
     std::string Plugin::url_param_encode(const std::string &param) const {
         std::ostringstream result;
         result.fill('0');

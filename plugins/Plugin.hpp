@@ -38,6 +38,7 @@ namespace QuickMedia {
     };
 
     DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
+    std::string strip(const std::string &str);
 
     class Plugin {
     public:

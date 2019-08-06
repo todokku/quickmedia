@@ -21,7 +21,7 @@ namespace QuickMedia {
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *text = quickmedia_html_node_get_text(node);
                 if(href && text) {
-                    auto item = std::make_unique<BodyItem>(text);
+                    auto item = std::make_unique<BodyItem>(strip(text));
                     item->url = href;
                     item_data->push_back(std::move(item));
                 }
@@ -83,7 +83,7 @@ namespace QuickMedia {
                         std::string name_str = name.asString();
                         while(remove_html_span(name_str)) {}
                         if(name_str != text) {
-                            auto item = std::make_unique<BodyItem>(name_str);
+                            auto item = std::make_unique<BodyItem>(strip(name_str));
                             item->url = "https://manganelo.com/manga/" + url_param_encode(nameunsigned.asString());
                             Json::Value image = child.get("image", "");
                             if(image.isString() && image.asCString()[0] != '\0')

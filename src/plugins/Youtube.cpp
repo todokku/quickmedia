@@ -29,7 +29,7 @@ namespace QuickMedia {
                 const char *title = quickmedia_html_node_get_attribute_value(node, "title");
                 // Checking for watch?v helps skipping ads
                 if(href && title && begins_with(href, "/watch?v=")) {
-                    auto item = std::make_unique<BodyItem>(title);
+                    auto item = std::make_unique<BodyItem>(strip(title));
                     item->url = std::string("https://www.youtube.com") + href;
                     result_items->push_back(std::move(item));
                 }

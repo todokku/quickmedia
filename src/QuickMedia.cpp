@@ -2,10 +2,13 @@
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
 #include "../include/VideoPlayer.hpp"
+#include <cppcodec/base64_rfc4648.hpp>
 
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window/Event.hpp>
+#include <json/reader.h>
+#include <json/writer.h>
 #include <assert.h>
 #include <cmath>
 
@@ -37,15 +40,15 @@ namespace QuickMedia {
         delete current_plugin;
     }
 
-    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page) {
+    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page, std::string &selected_title) {
         BodyItem *selected_item = body->get_selected();
         if(!selected_item)
             return SearchResult::ERR;
 
-        std::string selected_item_title = selected_item->title;
+        selected_title = selected_item->title;
         std::string selected_item_url = selected_item->url;
         body->clear_items();
-        SearchResult search_result = plugin->search(!selected_item_url.empty() ? selected_item_url : selected_item_title, body->items, next_page);
+        SearchResult search_result = plugin->search(!selected_item_url.empty() ? selected_item_url : selected_title, body->items, next_page);
         body->reset_selected();
         return search_result;
     }
@@ -77,9 +80,12 @@ namespace QuickMedia {
                 case Page::EPISODE_LIST:
                     episode_list_page();
                     break;
-                case Page::IMAGES:
+                case Page::IMAGES: {
+                    window.setKeyRepeatEnabled(false);
                     image_page();
+                    window.setKeyRepeatEnabled(true);
                     break;
+                }
                 default:
                     return;
             }
@@ -110,6 +116,31 @@ namespace QuickMedia {
         }
     }
 
+    static std::string base64_encode(const std::string &data) {
+        return cppcodec::base64_rfc4648::encode(data);
+    }
+
+    static bool get_manga_storage_json(const Path &storage_path, Json::Value &result) {
+        std::string file_content;
+        if(file_get_content(storage_path, file_content) != 0)
+            return -1;
+
+        Json::CharReaderBuilder json_builder;
+        std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
+        std::string json_errors;
+        if(json_reader->parse(&file_content.front(), &file_content.back(), &result, &json_errors)) {
+            fprintf(stderr, "Failed to read json, error: %s\n", json_errors.c_str());
+            return -1;
+        }
+
+        return 0;
+    }
+
+    static bool save_manga_progress_json(const Path &path, const Json::Value &json) {
+        Json::StreamWriterBuilder json_builder;
+        return file_overwrite(path, Json::writeString(json_builder, json)) == 0;
+    }
+
     void Program::search_suggestion_page() {
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             update_search_suggestions(text, body, current_plugin);
@@ -117,8 +148,24 @@ namespace QuickMedia {
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
             Page next_page;
-            if(search_selected_suggestion(body, current_plugin, next_page) == SearchResult::OK)
+            if(search_selected_suggestion(body, current_plugin, next_page, content_title) == SearchResult::OK) {
+                if(next_page == Page::EPISODE_LIST) {
+                    Path content_storage_dir = get_storage_dir().join("manga");
+                    if(create_directory_recursive(content_storage_dir) != 0) {
+                        // TODO: Show this to the user
+                        fprintf(stderr, "Failed to create directory: %s\n", content_storage_dir.data.c_str());
+                        return;
+                    }
+
+                    content_storage_file = content_storage_dir.join(base64_encode(content_title));
+                    content_storage_json.clear();
+                    content_storage_json["name"] = content_title;
+                    FileType file_type = get_file_type(content_storage_file);
+                    if(file_type == FileType::REGULAR)
+                        get_manga_storage_json(content_storage_file, content_storage_json);
+                }
                 current_page = next_page;
+            }
         };
 
         sf::Vector2f body_pos;
@@ -263,8 +310,22 @@ namespace QuickMedia {
 
             images_url = selected_item->url;
             image_index = 0;
+            chapter_title = selected_item->title;
             current_page = Page::IMAGES;
+
+            const Json::Value &json_chapters = content_storage_json["chapters"];
+            if(json_chapters.isObject()) {
+                const Json::Value &json_chapter = json_chapters[chapter_title];
+                if(json_chapter.isObject()) {
+                    const Json::Value &current = json_chapter["current"];
+                    if(current.isNumeric())
+                        image_index = current.asInt() - 1;
+                }
+            }
+    
         };
+
+        const Json::Value &json_chapters = content_storage_json["chapters"];
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
@@ -297,7 +358,7 @@ namespace QuickMedia {
             search_bar->update();
 
             window.clear(back_color);
-            body->draw(window, body_pos, body_size);
+            body->draw(window, body_pos, body_size, json_chapters);
             search_bar->draw(window);
             window.display();
         }
@@ -361,12 +422,34 @@ namespace QuickMedia {
         }
         image_data.resize(0);
 
+        int num_images = 0;
+        image_plugin->get_number_of_images(images_url, num_images);
+
+        Json::Value &json_chapters = content_storage_json["chapters"];
+        Json::Value json_chapter;
+        int latest_read = image_index + 1;
+        if(json_chapters.isObject()) {
+            json_chapter = json_chapters[chapter_title];
+            if(json_chapter.isObject()) {
+                const Json::Value &current = json_chapter["current"];
+                if(current.isNumeric())
+                    latest_read = std::max(latest_read, current.asInt());
+            }
+        } else {
+            json_chapters = Json::Value(Json::objectValue);
+            json_chapter = Json::Value(Json::objectValue);
+        }
+        json_chapter["current"] = latest_read;
+        json_chapter["total"] = num_images;
+        json_chapters[chapter_title] = json_chapter;
+        if(!save_manga_progress_json(content_storage_file, content_storage_json)) {
+            // TODO: Show this to the user
+            fprintf(stderr, "Failed to save manga progress!\n");
+        }
+
         bool error = !error_message.getString().isEmpty();
         bool resized = true;
         sf::Event event;
-
-        int num_images = 0;
-        image_plugin->get_number_of_images(images_url, num_images);
 
         sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
         if(image_index == num_images)
