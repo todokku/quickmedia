@@ -185,6 +185,8 @@ namespace QuickMedia {
                 {
                     video_size.x = w;
                     video_size.y = h;
+                    context.reset(new sf::Context(sf::ContextSettings(), w, h));
+                    context->setActive(true);
                     // TODO: Verify if it's valid to re-create the texture like this,
                     // instead of using deconstructor
                     if(texture.create(w, h)) {
@@ -192,8 +194,6 @@ namespace QuickMedia {
                         if(newTextureBuf)
                             textureBuffer = (sf::Uint8*)newTextureBuf;
                     }
-                    context.reset(new sf::Context(sf::ContextSettings(), w, h));
-                    context->setActive(true);
                     glViewport(0, 0, w, h);
                     context->setActive(false);
                     resize(desired_size);

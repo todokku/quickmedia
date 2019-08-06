@@ -19,3 +19,4 @@ Make network requests asynchronous to not freeze gui when navigating. Also have 
 Retain search text when navigating back.
 Disable ytdl_hook subtitles. If a video has subtitles for many languages, then it will stall video playback for several seconds
 until all subtitles have been downloaded and loaded.
+Figure out why memory usage doesn't drop much when killing the video player. Is it a bug in proprietary nvidia drivers on gnu/linux?
