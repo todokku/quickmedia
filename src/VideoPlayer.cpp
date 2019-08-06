@@ -34,6 +34,19 @@ namespace QuickMedia {
     static void mpv_set_option_int64(mpv_handle *mpv, const char *option, int64_t value) {
         check_error(mpv_set_option(mpv, option, MPV_FORMAT_INT64, &value));
     }
+
+    class ContextScope {
+    public:
+        ContextScope(sf::Context *_context) : context(_context) {
+            context->setActive(true);
+        }
+
+        ~ContextScope() {
+            context->setActive(false);
+        }
+
+        sf::Context *context;
+    };
     
     VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop) : 
         redraw(false),
@@ -45,7 +58,7 @@ namespace QuickMedia {
         textureBuffer(nullptr),
         desired_size(width, height)
     {
-        context->setActive(true);
+        ContextScope context_scope(context.get());
         texture.setSmooth(true);
         
         // mpv_create requires LC_NUMERIC to be set to "C" for some reason, see mpv_create documentation
@@ -66,8 +79,11 @@ namespace QuickMedia {
         if(mpv_initialize(mpv) < 0)
             throw VideoInitializationException("Failed to initialize mpv");
 
-        check_error(mpv_set_option_string(mpv, "vo", "opengl-cb"));
-        check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
+        //check_error(mpv_set_option_string(mpv, "vo", "opengl-cb"));
+        //check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
+
+        check_error(mpv_set_option_string(mpv, "terminal", "yes"));
+        check_error(mpv_set_option_string(mpv, "msg-level", "all=v"));
 
         if(loop)
             check_error(mpv_set_option_string(mpv, "loop", "inf"));
@@ -91,19 +107,23 @@ namespace QuickMedia {
         mpv_render_context_set_update_callback(mpvGl, onMpvRedraw, this);
         mpv_set_wakeup_callback(mpv, on_mpv_events, this);
         
-        context->setActive(false);
-        
         seekbar.setFillColor(sf::Color::White);
         seekbar_background.setFillColor(sf::Color(0, 0, 0, 150));
         load_file(file);
     }
     
     VideoPlayer::~VideoPlayer() {
-        if(mpvGl)
+        if(mpvGl) {
+            mpv_render_context_set_update_callback(mpvGl, nullptr, nullptr);
+            mpv_render_context_free(mpvGl);
+        }
 
-        mpv_render_context_free(mpvGl);
         free(textureBuffer);
-        mpv_detach_destroy(mpv);
+
+        if(mpv) {
+            mpv_set_wakeup_callback(mpv, nullptr, nullptr);
+            mpv_detach_destroy(mpv);
+        }
     }
     
     void VideoPlayer::setPosition(float x, float y) {
@@ -176,7 +196,7 @@ namespace QuickMedia {
                 if(onPlaybackEndedCallback)
                     onPlaybackEndedCallback();
             } else {
-                printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
+                //printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
             }
         }
     }
@@ -206,9 +226,10 @@ namespace QuickMedia {
                 mpv_render_context_render(mpvGl, params);
                 // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
                 glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
+                context->setActive(false);
                 texture.update(textureBuffer);
                 sprite.setTexture(texture, true);
-                context->setActive(false);
+                mpv_render_context_report_swap(mpvGl);
             }
         }
         window.draw(sprite);
