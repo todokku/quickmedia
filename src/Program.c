@@ -49,7 +49,7 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
                 goto cleanup;
             }
 
-            if(output_callback(buffer, bytes_read, userdata) != 0)
+            if(output_callback && output_callback(buffer, bytes_read, userdata) != 0)
                 break;
         }
 

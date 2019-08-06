@@ -37,6 +37,7 @@ namespace QuickMedia {
         std::string video_url;
         std::string images_url;
         std::string content_title;
+        std::string content_url;
         std::string chapter_title;
         int image_index;
         Path content_storage_file;

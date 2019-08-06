@@ -2,6 +2,7 @@
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
 #include "../include/VideoPlayer.hpp"
+#include "../include/Program.h"
 #include <cppcodec/base64_rfc4648.hpp>
 
 #include <SFML/Graphics/RectangleShape.hpp>
@@ -40,15 +41,15 @@ namespace QuickMedia {
         delete current_plugin;
     }
 
-    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page, std::string &selected_title) {
+    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page, std::string &selected_title, std::string &selected_url) {
         BodyItem *selected_item = body->get_selected();
         if(!selected_item)
             return SearchResult::ERR;
 
         selected_title = selected_item->title;
-        std::string selected_item_url = selected_item->url;
+        selected_url = selected_item->url;
         body->clear_items();
-        SearchResult search_result = plugin->search(!selected_item_url.empty() ? selected_item_url : selected_title, body->items, next_page);
+        SearchResult search_result = plugin->search(!selected_url.empty() ? selected_url : selected_title, body->items, next_page);
         body->reset_selected();
         return search_result;
     }
@@ -148,7 +149,7 @@ namespace QuickMedia {
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
             Page next_page;
-            if(search_selected_suggestion(body, current_plugin, next_page, content_title) == SearchResult::OK) {
+            if(search_selected_suggestion(body, current_plugin, next_page, content_title, content_url) == SearchResult::OK) {
                 if(next_page == Page::EPISODE_LIST) {
                     Path content_storage_dir = get_storage_dir().join("manga");
                     if(create_directory_recursive(content_storage_dir) != 0) {
@@ -297,6 +298,27 @@ namespace QuickMedia {
         }
     }
 
+    enum class TrackMediaType {
+        RSS,
+        HTML
+    };
+
+    const char* track_media_type_string(TrackMediaType media_type) {
+        switch(media_type) {
+            case TrackMediaType::RSS:
+                return "rss";
+            case TrackMediaType::HTML:
+                return "html";
+        }
+        assert(false);
+        return "";
+    }
+
+    static int track_media(TrackMediaType media_type, const std::string &manga_title, const std::string &chapter_title, const std::string &url) {
+        const char *args[] = { "automedia.py", "add", track_media_type_string(media_type), url.data(), "--start-after", chapter_title.data(), "--name", manga_title.data(), nullptr };
+        return exec_program(args, nullptr, nullptr);
+    }
+
     void Program::episode_list_page() {
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
@@ -309,8 +331,8 @@ namespace QuickMedia {
                 return;
 
             images_url = selected_item->url;
-            image_index = 0;
             chapter_title = selected_item->title;
+            image_index = 0;
             current_page = Page::IMAGES;
 
             const Json::Value &json_chapters = content_storage_json["chapters"];
@@ -337,6 +359,15 @@ namespace QuickMedia {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
                 if(event.type == sf::Event::Resized)
                     resized = true;
+                else if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::T && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+                    BodyItem *selected_item = body->get_selected();
+                    if(selected_item) {
+                        if(track_media(TrackMediaType::HTML, content_title, selected_item->title, content_url) != 0) {
+                            // TODO: Show this to the user
+                            fprintf(stderr, "Failed to track media. Url: %s, title: %s\n", selected_item->url.c_str(), selected_item->title.c_str());
+                        }
+                    }
+                }
             }
 
             if(resized) {
@@ -496,7 +527,7 @@ namespace QuickMedia {
             if(resized) {
                 if(error) {
                     auto bounds = error_message.getLocalBounds();
-                    error_message.setPosition(content_size.x * 0.5f - bounds.width * 0.5f, content_size.y * 0.5f - bounds.height);
+                    error_message.setPosition(std::floor(content_size.x * 0.5f - bounds.width * 0.5f), std::floor(content_size.y * 0.5f - bounds.height));
                 } else {
                     clamp_sprite_to_size(image, content_size);
                     auto texture_size = image.getTexture()->getSize();

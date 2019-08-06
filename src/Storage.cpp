@@ -46,7 +46,7 @@ namespace QuickMedia {
     }
 
     Path get_storage_dir() {
-        return get_home_dir().join(".local").join("share").join("quickmedia");
+        return get_home_dir().join(".config").join("quickmedia");
     }
 
     int create_directory_recursive(const Path &path) {
