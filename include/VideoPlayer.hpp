@@ -12,7 +12,7 @@
 #include <functional>
 
 class mpv_handle;
-class mpv_opengl_cb_context;
+class mpv_render_context;
 
 namespace QuickMedia {
     class VideoInitializationException : public std::runtime_error {
@@ -35,12 +35,15 @@ namespace QuickMedia {
         // @path can also be an url if youtube-dl is installed
         void load_file(const std::string &path);
         
-        // This counter is incremented when mpv wants to redraw content
-        std::atomic_int redrawCounter;
+        // This is updated when mpv wants to render
+        std::atomic_bool redraw;
+        std::atomic_bool event_update;
         PlaybackEndedCallback onPlaybackEndedCallback;
     private:
+        void handle_events();
+    private:
         mpv_handle *mpv;
-        mpv_opengl_cb_context *mpvGl;
+        mpv_render_context *mpvGl;
         std::unique_ptr<sf::Context> context;
         sf::Sprite sprite;
         sf::Texture texture;

@@ -1,7 +1,7 @@
 #include "../include/VideoPlayer.hpp"
 #include <SFML/Window/Mouse.hpp>
 #include <mpv/client.h>
-#include <mpv/opengl_cb.h>
+#include <mpv/render_gl.h>
 #include <SFML/OpenGL.hpp>
 #include <clocale>
 #include <cmath>
@@ -11,9 +11,14 @@ namespace QuickMedia {
         return (void*)sf::Context::getFunction(name);
     }
     
-    static void onMpvRedraw(void *rawVideo) {
-        VideoPlayer *video_player = (VideoPlayer*)rawVideo;
-        ++video_player->redrawCounter;
+    static void onMpvRedraw(void *ctx) {
+        VideoPlayer *video_player = (VideoPlayer*)ctx;
+        video_player->redraw = true;
+    }
+
+    static void on_mpv_events(void *ctx) {
+        VideoPlayer *video_player = (VideoPlayer*)ctx;
+        video_player->event_update = true;
     }
 
     static void check_error(int status) {
@@ -31,7 +36,8 @@ namespace QuickMedia {
     }
     
     VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop) : 
-        redrawCounter(0),
+        redraw(false),
+        event_update(false),
         onPlaybackEndedCallback(nullptr),
         mpv(nullptr),
         mpvGl(nullptr),
@@ -66,13 +72,24 @@ namespace QuickMedia {
         if(loop)
             check_error(mpv_set_option_string(mpv, "loop", "inf"));
 
-        mpvGl = (mpv_opengl_cb_context*)mpv_get_sub_api(mpv, MPV_SUB_API_OPENGL_CB);
-        if(!mpvGl)
-            throw VideoInitializationException("Failed to initialize mpv opengl render context");
+        //mpvGl = (mpv_opengl_cb_context*)mpv_get_sub_api(mpv, MPV_SUB_API_OPENGL_CB);
+        //if(!mpvGl)
+        //    throw VideoInitializationException("Failed to initialize mpv opengl render context");
+
+        mpv_opengl_init_params opengl_init_params;
+        opengl_init_params.get_proc_address = getProcAddressMpv;
+        opengl_init_params.get_proc_address_ctx = nullptr;
+        mpv_render_param params[] = {
+            { MPV_RENDER_PARAM_API_TYPE, (void*)MPV_RENDER_API_TYPE_OPENGL },
+            { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &opengl_init_params },
+            { (mpv_render_param_type)0, nullptr }
+        };
+
+        if (mpv_render_context_create(&mpvGl, mpv, params) < 0)
+            throw VideoInitializationException("failed to initialize mpv GL context");
         
-        mpv_opengl_cb_set_update_callback(mpvGl, onMpvRedraw, this);
-        if(mpv_opengl_cb_init_gl(mpvGl, nullptr, getProcAddressMpv, nullptr) < 0)
-            throw VideoInitializationException("Failed to initialize mpv gl callback func");
+        mpv_render_context_set_update_callback(mpvGl, onMpvRedraw, this);
+        mpv_set_wakeup_callback(mpv, on_mpv_events, this);
         
         context->setActive(false);
         
@@ -83,10 +100,9 @@ namespace QuickMedia {
     
     VideoPlayer::~VideoPlayer() {
         if(mpvGl)
-            mpv_opengl_cb_set_update_callback(mpvGl, nullptr, nullptr);
-        
+
+        mpv_render_context_free(mpvGl);
         free(textureBuffer);
-        mpv_opengl_cb_uninit_gl(mpvGl);
         mpv_detach_destroy(mpv);
     }
     
@@ -127,8 +143,8 @@ namespace QuickMedia {
         image_size.y *= image_scale.y;
         sprite.setPosition(std::floor(desired_size.x * 0.5f - image_size.x * 0.5f), std::floor(desired_size.y * 0.5f - image_size.y * 0.5f));
     }
-    
-    void VideoPlayer::draw(sf::RenderWindow &window) {
+
+    void VideoPlayer::handle_events() {
         while(true) {
             mpv_event *mpvEvent = mpv_wait_event(mpv, 0.0);
             if(mpvEvent->event_id == MPV_EVENT_NONE)
@@ -160,22 +176,40 @@ namespace QuickMedia {
                 if(onPlaybackEndedCallback)
                     onPlaybackEndedCallback();
             } else {
-                //printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
+                printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
             }
         }
+    }
+    
+    void VideoPlayer::draw(sf::RenderWindow &window) {
+        bool do_event_update = event_update.exchange(false);
+        if(do_event_update)
+            handle_events();
         
-        if(redrawCounter > 0 && textureBuffer) {
-            --redrawCounter;
-            auto textureSize = texture.getSize();
-            context->setActive(true);
-            //mpv_render_context_render(mpvGl, params);
-            mpv_opengl_cb_draw(mpvGl, 0, textureSize.x, textureSize.y);
-            // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
-            glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
-            texture.update(textureBuffer);
-            sprite.setTexture(texture, true);
-            mpv_opengl_cb_report_flip(mpvGl, 0);
-            context->setActive(false);
+        if(textureBuffer && redraw) {
+            uint64_t update_flags = mpv_render_context_update(mpvGl);
+            if((update_flags & MPV_RENDER_UPDATE_FRAME) && redraw.exchange(false)) {
+                auto textureSize = texture.getSize();
+
+                mpv_opengl_fbo opengl_fbo;
+                opengl_fbo.fbo = 0;
+                opengl_fbo.w = textureSize.x;
+                opengl_fbo.h = textureSize.y;
+                opengl_fbo.internal_format = 0;
+                mpv_render_param params[] = 
+                {
+                    { MPV_RENDER_PARAM_OPENGL_FBO, &opengl_fbo },
+                    { (mpv_render_param_type)0, nullptr }
+                };
+                
+                context->setActive(true);
+                mpv_render_context_render(mpvGl, params);
+                // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
+                glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
+                texture.update(textureBuffer);
+                sprite.setTexture(texture, true);
+                context->setActive(false);
+            }
         }
         window.draw(sprite);
 
