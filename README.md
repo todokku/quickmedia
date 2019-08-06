@@ -1,5 +1,6 @@
 # QuickMedia
-Native clients of websites with fast access to what you want to see
+Native clients of websites with fast access to what you want to see.
+[Demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7)
 # Dependencies
 ## Compile
 See project.conf \[dependencies].
