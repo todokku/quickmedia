@@ -12,6 +12,7 @@
 #include <json/writer.h>
 #include <assert.h>
 #include <cmath>
+#include <string.h>
 
 const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
@@ -31,8 +32,6 @@ namespace QuickMedia {
             abort();
         }
         body = new Body(font);
-        current_plugin = new Manganelo();
-        //current_plugin = new Youtube();
         search_bar = std::make_unique<SearchBar>(font);
     }
 
@@ -63,7 +62,27 @@ namespace QuickMedia {
         body->clamp_selection();
     }
 
-    void Program::run() {
+    static void usage() {
+        fprintf(stderr, "usage: QuickMedia <plugin>\n");
+        fprintf(stderr, "OPTIONS:\n");
+        fprintf(stderr, "plugin    The plugin to use. Should be either manganelo or youtube\n");
+    }
+
+    int Program::run(int argc, char **argv) {
+        if(argc < 2) {
+            usage();
+            return -1;
+        }
+
+        if(strcmp(argv[1], "manganelo") == 0)
+            current_plugin = new Manganelo();
+        else if(strcmp(argv[1], "youtube") == 0)
+            current_plugin = new Youtube();
+        else {
+            usage();
+            return -1;
+        }
+
         while(window.isOpen()) {
             switch(current_page) {
                 case Page::EXIT:
@@ -88,9 +107,12 @@ namespace QuickMedia {
                     break;
                 }
                 default:
-                    return;
+                    window.close();
+                    break;
             }
         }
+
+        return 0;
     }
 
     void Program::base_event_handler(sf::Event &event, Page previous_page) {

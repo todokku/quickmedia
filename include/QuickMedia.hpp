@@ -17,7 +17,7 @@ namespace QuickMedia {
     public:
         Program();
         ~Program();
-        void run();
+        int run(int argc, char **argv);
     private:
         void base_event_handler(sf::Event &event, Page previous_page);
         void search_suggestion_page();

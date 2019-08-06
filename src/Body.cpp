@@ -116,7 +116,6 @@ namespace QuickMedia {
     // TODO: Show chapters (rows) that have been read differently to make it easier to see what
     // needs hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
-        assert(content_progress.isObject());
         const float font_height = title_text.getCharacterSize() + 8.0f;
         const float image_height = 100.0f;
 
@@ -127,8 +126,8 @@ namespace QuickMedia {
 
         sf::RectangleShape item_background;
         item_background.setFillColor(front_color);
-        //item_background.setOutlineThickness(1.0f);
-        //item_background.setOutlineColor(sf::Color(63, 65, 67));
+        item_background.setOutlineThickness(1.0f);
+        item_background.setOutlineColor(sf::Color(63, 65, 67));
 
         sf::RectangleShape selected_border;
         selected_border.setFillColor(sf::Color::Red);
@@ -201,13 +200,15 @@ namespace QuickMedia {
 
             // TODO: Do the same for non-manga content
             const Json::Value &item_progress = content_progress[item->title];
-            const Json::Value &current_json = item_progress["current"];
-            const Json::Value &total_json = item_progress["total"];
-            if(current_json.isNumeric() && total_json.isNumeric()) {
-                progress_text.setString(std::string("Progress: ") + std::to_string(current_json.asInt()) + "/" + std::to_string(total_json.asInt()));
-                auto bounds = progress_text.getLocalBounds();
-                progress_text.setPosition(std::floor(item_pos.x + size.x - bounds.width - 10.0f), std::floor(item_pos.y));
-                window.draw(progress_text);
+            if(item_progress.isObject()) {
+                const Json::Value &current_json = item_progress["current"];
+                const Json::Value &total_json = item_progress["total"];
+                if(current_json.isNumeric() && total_json.isNumeric()) {
+                    progress_text.setString(std::string("Progress: ") + std::to_string(current_json.asInt()) + "/" + std::to_string(total_json.asInt()));
+                    auto bounds = progress_text.getLocalBounds();
+                    progress_text.setPosition(std::floor(item_pos.x + size.x - bounds.width - 10.0f), std::floor(item_pos.y));
+                    window.draw(progress_text);
+                }
             }
 
             pos.y += row_height + 10.0f;
