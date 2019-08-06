@@ -439,7 +439,7 @@ namespace QuickMedia {
             json_chapters = Json::Value(Json::objectValue);
             json_chapter = Json::Value(Json::objectValue);
         }
-        json_chapter["current"] = latest_read;
+        json_chapter["current"] = std::min(latest_read, num_images);
         json_chapter["total"] = num_images;
         json_chapters[chapter_title] = json_chapter;
         if(!save_manga_progress_json(content_storage_file, content_storage_json)) {
@@ -460,7 +460,7 @@ namespace QuickMedia {
 
         // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {
-            while (window.pollEvent(event)) {
+            if(window.waitEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     current_page = Page::EXIT;
                 } else if(event.type == sf::Event::Resized) {
