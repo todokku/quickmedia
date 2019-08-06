@@ -89,11 +89,11 @@ namespace QuickMedia {
                     window.close();
                     break;
                 case Page::SEARCH_SUGGESTION:
-                    body->draw_thumbnails = true;
+                    body->draw_thumbnails = current_plugin->search_suggestions_has_thumbnails();
                     search_suggestion_page();
                     break;
                 case Page::SEARCH_RESULT:
-                    body->draw_thumbnails = true;
+                    body->draw_thumbnails = current_plugin->search_results_has_thumbnails();
                     search_result_page();
                     break;
                 case Page::VIDEO_CONTENT:

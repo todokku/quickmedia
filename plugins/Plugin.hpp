@@ -47,6 +47,8 @@ namespace QuickMedia {
         virtual SearchResult search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) = 0;
         virtual SuggestionResult update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items);
         virtual std::vector<std::unique_ptr<BodyItem>> get_related_media(const std::string &url);
+        virtual bool search_suggestions_has_thumbnails() const = 0;
+        virtual bool search_results_has_thumbnails() const = 0;
     protected:
         std::string url_param_encode(const std::string &param) const;
     };

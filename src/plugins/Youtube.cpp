@@ -40,23 +40,21 @@ namespace QuickMedia {
         return result == 0 ? SearchResult::OK : SearchResult::ERR;
     }
 
-    static void iterate_suggestion_result(const Json::Value &value, const std::string &search_text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+    static void iterate_suggestion_result(const Json::Value &value, std::vector<std::unique_ptr<BodyItem>> &result_items, int &iterate_count) {
+        ++iterate_count;
         if(value.isArray()) {
             for(const Json::Value &child : value) {
-                iterate_suggestion_result(child, search_text, result_items);
+                iterate_suggestion_result(child, result_items, iterate_count);
             }
-        } else if(value.isString()) {
+        } else if(value.isString() && iterate_count > 2) {
             std::string title = value.asString();
-            if(title != search_text) {
-                auto item = std::make_unique<BodyItem>(title);
-                result_items.push_back(std::move(item));
-            }
+            auto item = std::make_unique<BodyItem>(title);
+            result_items.push_back(std::move(item));
         }
     }
 
     SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
-        result_items.push_back(std::make_unique<BodyItem>(text));
-        std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gl=us&q=";
+        std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gs_rn=64&gs_ri=youtube&ds=yt&cp=7&gs_id=x&q=";
         url += url_param_encode(text);
 
         std::string server_response;
@@ -85,7 +83,17 @@ namespace QuickMedia {
             return SuggestionResult::ERR;
         }
 
-        iterate_suggestion_result(json_root, text, result_items);
+        int iterate_count = 0;
+        iterate_suggestion_result(json_root, result_items, iterate_count);
+        bool found_search_text = false;
+        for(auto &item : result_items) {
+            if(item->title == text) {
+                found_search_text = true;
+                break;
+            }
+        }
+        if(!found_search_text)
+            result_items.insert(result_items.begin(), std::make_unique<BodyItem>(text));
         return SuggestionResult::OK;
     }
 

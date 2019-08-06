@@ -82,14 +82,12 @@ namespace QuickMedia {
                     if(name.isString() && name.asCString()[0] != '\0' && nameunsigned.isString() && nameunsigned.asCString()[0] != '\0') {
                         std::string name_str = name.asString();
                         while(remove_html_span(name_str)) {}
-                        if(name_str != text) {
-                            auto item = std::make_unique<BodyItem>(strip(name_str));
-                            item->url = "https://manganelo.com/manga/" + url_param_encode(nameunsigned.asString());
-                            Json::Value image = child.get("image", "");
-                            if(image.isString() && image.asCString()[0] != '\0')
-                                item->thumbnail_url = image.asString();
-                            result_items.push_back(std::move(item));
-                        }
+                        auto item = std::make_unique<BodyItem>(strip(name_str));
+                        item->url = "https://manganelo.com/manga/" + url_param_encode(nameunsigned.asString());
+                        Json::Value image = child.get("image", "");
+                        if(image.isString() && image.asCString()[0] != '\0')
+                            item->thumbnail_url = image.asString();
+                        result_items.push_back(std::move(item));
                     }
                 }
             }
