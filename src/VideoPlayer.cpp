@@ -54,11 +54,11 @@ namespace QuickMedia {
         onPlaybackEndedCallback(nullptr),
         mpv(nullptr),
         mpvGl(nullptr),
-        context(std::make_unique<sf::Context>(sf::ContextSettings(), width, height)),
+        context(nullptr),
         textureBuffer(nullptr),
         desired_size(width, height)
     {
-        ContextScope context_scope(context.get());
+        //ContextScope context_scope(context.get());
         texture.setSmooth(true);
         
         // mpv_create requires LC_NUMERIC to be set to "C" for some reason, see mpv_create documentation

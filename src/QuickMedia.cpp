@@ -291,21 +291,24 @@ namespace QuickMedia {
         }
 
         std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(video_url);
+        bool reload = false;
 
         if(video_player) {
-            video_player->onPlaybackEndedCallback = [this, &related_media, &video_player]() {
+            video_player->onPlaybackEndedCallback = [this, &related_media, &video_player, &reload]() {
                 if(related_media.empty())
                     return;
                 video_url = related_media.front()->url;
-                video_player->load_file(video_url);
                 related_media = current_plugin->get_related_media(video_url);
+                // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
+                //video_player->load_file(video_url);
+                reload = true;
             };
         }
 
         sf::Clock resize_timer;
         sf::Event event;
 
-        while (current_page == Page::VIDEO_CONTENT) {
+        while (current_page == Page::VIDEO_CONTENT && !reload) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
                 if(event.type == sf::Event::Resized) {
