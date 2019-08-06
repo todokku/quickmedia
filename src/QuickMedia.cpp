@@ -27,7 +27,7 @@ namespace QuickMedia {
         image_index(0)
     {
         window.setVerticalSyncEnabled(true);
-        if(!font.loadFromFile("fonts/Lato-Regular.ttf")) {
+        if(!font.loadFromFile("../../../fonts/Lato-Regular.ttf")) {
             fprintf(stderr, "Failed to load font!\n");
             abort();
         }
