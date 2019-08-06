@@ -17,3 +17,5 @@ Give user the option to start where they left off or from the start.
 For manga, view the next chapter when reaching the end of a chapter.
 Make network requests asynchronous to not freeze gui when navigating. Also have loading animation.
 Retain search text when navigating back.
+Disable ytdl_hook subtitles. If a video has subtitles for many languages, then it will stall video playback for several seconds
+until all subtitles have been downloaded and loaded.

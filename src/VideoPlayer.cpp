@@ -79,7 +79,11 @@ namespace QuickMedia {
         if(mpv_initialize(mpv) < 0)
             throw VideoInitializationException("Failed to initialize mpv");
 
-        //check_error(mpv_set_option_string(mpv, "vo", "opengl-cb"));
+        // TODO: Enabling vo=gpu will make mpv create its own window, or take over the QuickMedia window fully
+        // if "wid" option is used. To take advantage of vo=gpu, QuickMedia should create a parent window
+        // and make mpv use that and then embed that into the parent QuickMedia window.
+        // This will also remove the need for rendering with sfml (no need for texture copy!).
+        //check_error(mpv_set_option_string(mpv, "vo", "gpu"));
         //check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
 
         check_error(mpv_set_option_string(mpv, "terminal", "yes"));
@@ -95,6 +99,7 @@ namespace QuickMedia {
         mpv_opengl_init_params opengl_init_params;
         opengl_init_params.get_proc_address = getProcAddressMpv;
         opengl_init_params.get_proc_address_ctx = nullptr;
+        opengl_init_params.extra_exts = nullptr;
         mpv_render_param params[] = {
             { MPV_RENDER_PARAM_API_TYPE, (void*)MPV_RENDER_API_TYPE_OPENGL },
             { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &opengl_init_params },
@@ -114,15 +119,16 @@ namespace QuickMedia {
     
     VideoPlayer::~VideoPlayer() {
         if(mpvGl) {
-            mpv_render_context_set_update_callback(mpvGl, nullptr, nullptr);
+            //mpv_render_context_set_update_callback(mpvGl, nullptr, nullptr);
             mpv_render_context_free(mpvGl);
         }
 
         free(textureBuffer);
 
         if(mpv) {
-            mpv_set_wakeup_callback(mpv, nullptr, nullptr);
-            mpv_detach_destroy(mpv);
+            //mpv_set_wakeup_callback(mpv, nullptr, nullptr);
+            //mpv_detach_destroy(mpv);
+            mpv_terminate_destroy(mpv);
         }
     }
     
@@ -202,8 +208,7 @@ namespace QuickMedia {
     }
     
     void VideoPlayer::draw(sf::RenderWindow &window) {
-        bool do_event_update = event_update.exchange(false);
-        if(do_event_update)
+        if(event_update.exchange(false))
             handle_events();
         
         if(textureBuffer && redraw) {

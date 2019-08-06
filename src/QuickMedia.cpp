@@ -281,12 +281,13 @@ namespace QuickMedia {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
 
-        std::unique_ptr<VideoPlayer> video_player;
+        std::unique_ptr<VideoPlayer> video_player = nullptr;
         try {
             printf("Play video: %s\n", video_url.c_str());
-            video_player = std::make_unique<VideoPlayer>(window_size.x, window_size.y, window.getSystemHandle(), video_url.c_str());
+            video_player.reset(new VideoPlayer(window_size.x, window_size.y, window.getSystemHandle(), video_url.c_str()));
         } catch(VideoInitializationException &e) {
             fprintf(stderr, "Failed to create video player!. TODO: Show this to the user");
+            video_player = nullptr;
         }
 
         std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(video_url);
