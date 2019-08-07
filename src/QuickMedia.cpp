@@ -145,6 +145,31 @@ namespace QuickMedia {
         }
     }
 
+    enum class Urgency {
+        LOW,
+        NORMAL,
+        CRITICAL
+    };
+
+    const char* urgency_string(Urgency urgency) {
+        switch(urgency) {
+            case Urgency::LOW:
+                return "low";
+            case Urgency::NORMAL:
+                return "normal";
+            case Urgency::CRITICAL:
+                return "critical";
+        }
+        assert(false);
+        return nullptr;
+    }
+
+    static void show_notification(const std::string &title, const std::string &description, Urgency urgency = Urgency::NORMAL) {
+        const char *args[] = { "notify-send", "-u", urgency_string(urgency), "--", title.c_str(), description.c_str(), nullptr };
+        exec_program(args, nullptr, nullptr);
+        printf("Notification: title: %s, description: %s\n", title.c_str(), description.c_str());
+    }
+
     static std::string base64_encode(const std::string &data) {
         return cppcodec::base64_rfc4648::encode(data);
     }
@@ -181,8 +206,7 @@ namespace QuickMedia {
                 if(next_page == Page::EPISODE_LIST) {
                     Path content_storage_dir = get_storage_dir().join("manga");
                     if(create_directory_recursive(content_storage_dir) != 0) {
-                        // TODO: Show this to the user
-                        fprintf(stderr, "Failed to create directory: %s\n", content_storage_dir.data.c_str());
+                        show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
                         return;
                     }
 
@@ -295,7 +319,7 @@ namespace QuickMedia {
             printf("Play video: %s\n", video_url.c_str());
             video_player.reset(new VideoPlayer(window, window_size.x, window_size.y, video_url.c_str()));
         } catch(VideoInitializationException &e) {
-            fprintf(stderr, "Failed to create video player!. TODO: Show this to the user");
+            show_notification("Video player", "Failed to create video player", Urgency::CRITICAL);
             video_player = nullptr;
         }
 
@@ -410,9 +434,10 @@ namespace QuickMedia {
                 else if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::T && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
                     BodyItem *selected_item = body->get_selected();
                     if(selected_item) {
-                        if(track_media(TrackMediaType::HTML, content_title, selected_item->title, content_url) != 0) {
-                            // TODO: Show this to the user
-                            fprintf(stderr, "Failed to track media. Url: %s, title: %s\n", selected_item->url.c_str(), selected_item->title.c_str());
+                        if(track_media(TrackMediaType::HTML, content_title, selected_item->title, content_url) == 0) {
+                            show_notification("Media tracker", "You are now tracking " + selected_item->title);
+                        } else {
+                            show_notification("Media tracker", "Failed to track media. Url: " + selected_item->url + ", title: " + selected_item->title, Urgency::CRITICAL);
                         }
                     }
                 }
@@ -495,8 +520,7 @@ namespace QuickMedia {
         json_chapter["total"] = num_images;
         json_chapters[chapter_title] = json_chapter;
         if(!save_manga_progress_json(content_storage_file, content_storage_json)) {
-            // TODO: Show this to the user
-            fprintf(stderr, "Failed to save manga progress!\n");
+            show_notification("Manga progress", "Failed to save manga progress", Urgency::CRITICAL);
         }
 
         bool error = !error_message.getString().isEmpty();
