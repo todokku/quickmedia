@@ -1,10 +1,13 @@
 #include "../include/VideoPlayer.hpp"
+#include "../include/Scale.hpp"
 #include <SFML/Window/Mouse.hpp>
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 #include <SFML/OpenGL.hpp>
 #include <clocale>
 #include <cmath>
+
+const int UI_VISIBLE_TIMEOUT_MS = 2500;
 
 namespace QuickMedia {
     static void* getProcAddressMpv(void *funcContext, const char *name) {
@@ -48,7 +51,7 @@ namespace QuickMedia {
         sf::Context *context;
     };
     
-    VideoPlayer::VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop) : 
+    VideoPlayer::VideoPlayer(sf::RenderWindow &window, unsigned int width, unsigned int height, const char *file, bool loop) : 
         redraw(false),
         event_update(false),
         onPlaybackEndedCallback(nullptr),
@@ -74,7 +77,7 @@ namespace QuickMedia {
         check_error(mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M"));
 
         //mpv_set_option_bool(mpv, "osc", true);
-        //mpv_set_option_int64(mpv, "wid", window_handle);
+        //mpv_set_option_int64(mpv, "wid", window.getSystemHandle());
         
         if(mpv_initialize(mpv) < 0)
             throw VideoInitializationException("Failed to initialize mpv");
@@ -131,46 +134,34 @@ namespace QuickMedia {
             mpv_terminate_destroy(mpv);
         }
     }
+
+    void VideoPlayer::handleEvent(sf::Event &event) {
+        if(event.type == sf::Event::MouseMoved) {
+            cursor_last_active_timer.restart();
+        }
+    }
     
     void VideoPlayer::setPosition(float x, float y) {
         sprite.setPosition(x, y);
     }
 
-    // TODO: Fix this, it's incorrect
-    static void wrap_sprite_to_size(sf::Sprite &sprite, sf::Vector2i texture_size, const sf::Vector2f &size) {
-        auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
-
-        double overflow_x  = image_size.x - size.x;
-        double overflow_y  = image_size.y - size.y;
-
-        auto scale = sprite.getScale();
-        float scale_ratio = scale.x / scale.y;
-        bool reverse = overflow_x < 0.0f && overflow_y < 0.0f;
-
-        if((reverse && overflow_x * scale_ratio < overflow_y) || overflow_x * scale_ratio > overflow_y) {
-            float overflow_ratio = overflow_x / image_size.x;
-            float scale_x = 1.0f - overflow_ratio;
-            sprite.setScale(scale_x, scale_x * scale_ratio);
-        } else {
-            float overflow_ratio = overflow_y / image_size.y;
-            float scale_y = 1.0f - overflow_ratio;
-            sprite.setScale(scale_y * scale_ratio, scale_y);
-        }
-    }
-
-    void VideoPlayer::resize(const sf::Vector2i &size) {
-        desired_size = size;
+    // TODO: Make this work in the future when video size and sprite texture size wont be the same
+    void VideoPlayer::resize(const sf::Vector2f &size) {
+        desired_size = sf::Vector2f(size.x, size.y);
         if(!textureBuffer)
             return;
-        wrap_sprite_to_size(sprite, video_size, sf::Vector2f(desired_size.x, desired_size.y));
-        auto image_scale = sprite.getScale();
-        auto image_size = sf::Vector2f(video_size.x, video_size.y);
-        image_size.x *= image_scale.x;
-        image_size.y *= image_scale.y;
+
+        sf::Vector2f video_size_f(video_size.x, video_size.y);
+        auto video_scale = get_ratio(video_size_f, wrap_to_size(video_size_f, desired_size));
+        sprite.setScale(video_scale);
+
+        auto image_size = video_size_f;
+        image_size.x *= video_scale.x;
+        image_size.y *= video_scale.y;
         sprite.setPosition(std::floor(desired_size.x * 0.5f - image_size.x * 0.5f), std::floor(desired_size.y * 0.5f - image_size.y * 0.5f));
     }
 
-    void VideoPlayer::handle_events() {
+    void VideoPlayer::handle_mpv_events() {
         while(true) {
             mpv_event *mpvEvent = mpv_wait_event(mpv, 0.0);
             if(mpvEvent->event_id == MPV_EVENT_NONE)
@@ -209,7 +200,7 @@ namespace QuickMedia {
     
     void VideoPlayer::draw(sf::RenderWindow &window) {
         if(event_update.exchange(false))
-            handle_events();
+            handle_mpv_events();
         
         if(textureBuffer && redraw) {
             uint64_t update_flags = mpv_render_context_update(mpvGl);
@@ -238,6 +229,9 @@ namespace QuickMedia {
             }
         }
         window.draw(sprite);
+
+        if(cursor_last_active_timer.getElapsedTime().asMilliseconds() > UI_VISIBLE_TIMEOUT_MS)
+            return;
 
         double pos = 0.0;
         mpv_get_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &pos);

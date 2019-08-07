@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Window/Event.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
@@ -25,11 +26,12 @@ namespace QuickMedia {
     class VideoPlayer {
     public:
         // Throws VideoInitializationException on error
-        VideoPlayer(unsigned int width, unsigned int height, sf::WindowHandle window_handle, const char *file, bool loop = false);
+        VideoPlayer(sf::RenderWindow &window, unsigned int width, unsigned int height, const char *file, bool loop = false);
         ~VideoPlayer();
         
+        void handleEvent(sf::Event &event);
         void setPosition(float x, float y);
-        void resize(const sf::Vector2i &size);
+        void resize(const sf::Vector2f &size);
         void draw(sf::RenderWindow &window);
 
         // @path can also be an url if youtube-dl is installed
@@ -40,7 +42,7 @@ namespace QuickMedia {
         std::atomic_bool event_update;
         PlaybackEndedCallback onPlaybackEndedCallback;
     private:
-        void handle_events();
+        void handle_mpv_events();
     private:
         mpv_handle *mpv;
         mpv_render_context *mpvGl;
@@ -49,8 +51,9 @@ namespace QuickMedia {
         sf::Texture texture;
         sf::Uint8 *textureBuffer;
         sf::Vector2i video_size;
-        sf::Vector2i desired_size;
+        sf::Vector2f desired_size;
         sf::RectangleShape seekbar;
         sf::RectangleShape seekbar_background;
+        sf::Clock cursor_last_active_timer;
     };
 }

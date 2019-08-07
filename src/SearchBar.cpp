@@ -3,7 +3,6 @@
 
 const sf::Color text_placeholder_color(255, 255, 255, 100);
 const sf::Color front_color(43, 45, 47);
-const sf::Color back_color(33, 35, 37);
 const float background_margin_horizontal = 8.0f;
 const float background_margin_vertical = 4.0f;
 const float padding_horizontal = 10.0f;

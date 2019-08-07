@@ -22,3 +22,4 @@ until all subtitles have been downloaded and loaded.
 Figure out why memory usage doesn't drop much when killing the video player. Is it a bug in proprietary nvidia drivers on gnu/linux?
 Add grid-view when thumbnails are visible.
 Add scrollbar.
+Add option to scale image to window size.

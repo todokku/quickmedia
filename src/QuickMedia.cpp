@@ -2,6 +2,7 @@
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
 #include "../include/VideoPlayer.hpp"
+#include "../include/Scale.hpp"
 #include "../include/Program.h"
 #include <cppcodec/base64_rfc4648.hpp>
 
@@ -292,7 +293,7 @@ namespace QuickMedia {
         std::unique_ptr<VideoPlayer> video_player = nullptr;
         try {
             printf("Play video: %s\n", video_url.c_str());
-            video_player.reset(new VideoPlayer(window_size.x, window_size.y, window.getSystemHandle(), video_url.c_str()));
+            video_player.reset(new VideoPlayer(window, window_size.x, window_size.y, video_url.c_str()));
         } catch(VideoInitializationException &e) {
             fprintf(stderr, "Failed to create video player!. TODO: Show this to the user");
             video_player = nullptr;
@@ -331,9 +332,10 @@ namespace QuickMedia {
         while (current_page == Page::VIDEO_CONTENT && !reload) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
-                if(event.type == sf::Event::Resized) {
-                    if(video_player)
-                        video_player->resize(sf::Vector2i(window_size.x, window_size.y));
+                if(video_player) {
+                    if(event.type == sf::Event::Resized)
+                        video_player->resize(window_size);
+                    video_player->handleEvent(event);
                 }
             }
 
@@ -441,33 +443,6 @@ namespace QuickMedia {
         }
     }
 
-    // TODO: Add option to scale image to window size.
-    // TODO: Fix scaling, it'ss a bit broken
-    static void clamp_sprite_to_size(sf::Sprite &sprite, const sf::Vector2f &size) {
-        auto texture_size = sprite.getTexture()->getSize();
-        auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
-
-        double overflow_x  = image_size.x - size.x;
-        double overflow_y  = image_size.y - size.y;
-        if(overflow_x <= 0.0f && overflow_y <= 0.0f) {
-            sprite.setScale(1.0f, 1.0f);
-            return;
-        }
-
-        auto scale = sprite.getScale();
-        float scale_ratio = scale.x / scale.y;
-
-        if(overflow_x * scale_ratio > overflow_y) {
-            float overflow_ratio = overflow_x / image_size.x;
-            float scale_x = 1.0f - overflow_ratio;
-            sprite.setScale(scale_x, scale_x * scale_ratio);
-        } else {
-            float overflow_ratio = overflow_y / image_size.y;
-            float scale_y = 1.0f - overflow_ratio;
-            sprite.setScale(scale_y * scale_ratio, scale_y);
-        }
-    }
-
     void Program::image_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
@@ -535,6 +510,13 @@ namespace QuickMedia {
         sf::RectangleShape chapter_text_background;
         chapter_text_background.setFillColor(sf::Color(0, 0, 0, 150));
 
+        sf::Vector2u texture_size;
+        sf::Vector2f texture_size_f;
+        if(!error) {
+            texture_size = image.getTexture()->getSize();
+            texture_size_f = sf::Vector2f(texture_size.x, texture_size.y);
+        }
+
         // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {
             if(window.waitEvent(event)) {
@@ -575,10 +557,10 @@ namespace QuickMedia {
                     auto bounds = error_message.getLocalBounds();
                     error_message.setPosition(std::floor(content_size.x * 0.5f - bounds.width * 0.5f), std::floor(content_size.y * 0.5f - bounds.height));
                 } else {
-                    clamp_sprite_to_size(image, content_size);
-                    auto texture_size = image.getTexture()->getSize();
-                    auto image_scale = image.getScale();
-                    auto image_size = sf::Vector2f(texture_size.x, texture_size.y);
+                    auto image_scale = get_ratio(texture_size_f, clamp_to_size(texture_size_f, content_size));
+                    image.setScale(image_scale);
+
+                    auto image_size = texture_size_f;
                     image_size.x *= image_scale.x;
                     image_size.y *= image_scale.y;
                     image.setPosition(std::floor(content_size.x * 0.5f - image_size.x * 0.5f), std::floor(content_size.y * 0.5f - image_size.y * 0.5f));
