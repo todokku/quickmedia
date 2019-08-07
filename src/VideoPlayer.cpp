@@ -115,8 +115,8 @@ namespace QuickMedia {
         mpv_render_context_set_update_callback(mpvGl, onMpvRedraw, this);
         mpv_set_wakeup_callback(mpv, on_mpv_events, this);
         
-        seekbar.setFillColor(sf::Color::White);
-        seekbar_background.setFillColor(sf::Color(0, 0, 0, 150));
+        seekbar.setFillColor(sf::Color(255, 20, 60, 200));
+        seekbar_background.setFillColor(sf::Color(33, 33, 33, 200));
         load_file(file);
     }
     
@@ -237,24 +237,27 @@ namespace QuickMedia {
         mpv_get_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &pos);
         pos *= 0.01;
 
-        auto textureSize = sprite.getTextureRect();
-        auto scale = sprite.getScale();
-        auto video_size = sf::Vector2f(textureSize.width * scale.x, textureSize.height * scale.y);
+        auto window_size = window.getSize();
 
-        const float seekbar_height = video_size.y * 0.025f;
-        seekbar.setPosition(sprite.getPosition() + sf::Vector2f(0.0f, video_size.y - seekbar_height));
-        seekbar.setSize(sf::Vector2f(video_size.x * pos, seekbar_height));
+        const float seekbar_height = std::floor(window_size.y * 0.02f);
+        const float seekbar_max_size = window_size.x;
+        sf::Vector2f seekbar_size(seekbar_max_size * pos, seekbar_height);
+        seekbar.setPosition(0.0f, window_size.y - seekbar_height);
+        seekbar.setSize(seekbar_size);
         window.draw(seekbar);
-        seekbar_background.setPosition(seekbar.getPosition() + sf::Vector2f(video_size.x * pos, 0.0f));
-        seekbar_background.setSize(sf::Vector2f(video_size.x - video_size.x * pos, seekbar_height));
+
+        seekbar_background.setPosition(seekbar.getPosition() + sf::Vector2f(seekbar_size.x, 0.0f));
+        seekbar_background.setSize(sf::Vector2f(seekbar_max_size - seekbar_size.x, seekbar_height));
         window.draw(seekbar_background);
 
         if(sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
             auto mouse_pos = sf::Mouse::getPosition(window);
             auto seekbar_pos = seekbar.getPosition();
             float diff_x = mouse_pos.x - seekbar_pos.x;
-            if(diff_x >= 0.0f && diff_x <= video_size.x && mouse_pos.y >= seekbar_pos.y && mouse_pos.y <= seekbar_pos.y + seekbar_height) {
-                double new_pos = ((double)diff_x / video_size.x) * 100.0;
+            if(mouse_pos.x >= seekbar_pos.x && mouse_pos.x <= seekbar_pos.x + seekbar_max_size &&
+                mouse_pos.y >= seekbar_pos.y && mouse_pos.y <= seekbar_pos.y + seekbar_height)
+            {
+                double new_pos = ((double)diff_x / seekbar_max_size) * 100.0;
                 mpv_set_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &new_pos);
             }
         }
