@@ -8,6 +8,7 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <json/value.h>
+#include <unordered_set>
 
 namespace QuickMedia {
     class Body;
@@ -42,5 +43,6 @@ namespace QuickMedia {
         int image_index;
         Path content_storage_file;
         Json::Value content_storage_json;
+        std::unordered_set<std::string> watched_videos;
     };
 }

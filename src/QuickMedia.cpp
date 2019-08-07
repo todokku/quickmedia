@@ -191,6 +191,8 @@ namespace QuickMedia {
                     FileType file_type = get_file_type(content_storage_file);
                     if(file_type == FileType::REGULAR)
                         get_manga_storage_json(content_storage_file, content_storage_json);
+                } else if(next_page == Page::VIDEO_CONTENT) {
+                    watched_videos.clear();
                 }
                 current_page = next_page;
             }
@@ -286,6 +288,7 @@ namespace QuickMedia {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
 
+        watched_videos.insert(video_url);
         std::unique_ptr<VideoPlayer> video_player = nullptr;
         try {
             printf("Play video: %s\n", video_url.c_str());
@@ -300,9 +303,21 @@ namespace QuickMedia {
 
         if(video_player) {
             video_player->onPlaybackEndedCallback = [this, &related_media, &video_player, &reload]() {
-                if(related_media.empty())
+                std::string new_video_url;
+                // Find video that hasn't been played before in this video session
+                for(auto it = related_media.begin(), end = related_media.end(); it != end; ++it) {
+                    if(watched_videos.find((*it)->url) == watched_videos.end()) {
+                        new_video_url = (*it)->url;
+                        related_media.erase(it);
+                        break;
+                    }
+                }
+
+                // If there are no videos to play, then dont play any...
+                if(new_video_url.empty())
                     return;
-                video_url = related_media.front()->url;
+
+                video_url = std::move(new_video_url);
                 related_media = current_plugin->get_related_media(video_url);
                 // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
                 //video_player->load_file(video_url);

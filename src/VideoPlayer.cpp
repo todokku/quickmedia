@@ -86,8 +86,8 @@ namespace QuickMedia {
         //check_error(mpv_set_option_string(mpv, "vo", "gpu"));
         //check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
 
-        check_error(mpv_set_option_string(mpv, "terminal", "yes"));
-        check_error(mpv_set_option_string(mpv, "msg-level", "all=v"));
+        //check_error(mpv_set_option_string(mpv, "terminal", "yes"));
+        //check_error(mpv_set_option_string(mpv, "msg-level", "all=v"));
 
         if(loop)
             check_error(mpv_set_option_string(mpv, "loop", "inf"));
