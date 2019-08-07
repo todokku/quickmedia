@@ -8,6 +8,10 @@ namespace QuickMedia {
         return strncmp(str, begin_with, strlen(begin_with)) == 0;
     }
 
+    static bool contains(const char *str, const char *substr) {
+        return strstr(str, substr);
+    }
+
     SearchResult Youtube::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) {
         next_page = Page::SEARCH_RESULT;
         std::string url = "https://youtube.com/results?search_query=";
@@ -16,6 +20,12 @@ namespace QuickMedia {
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
             return SearchResult::NET_ERR;
+
+        struct ItemData {
+            std::vector<std::unique_ptr<BodyItem>> *result_items;
+            size_t index;
+        };
+        ItemData item_data = { &result_items, 0 };
 
         QuickMediaHtmlSearch html_search;
         int result = quickmedia_html_search_init(&html_search, website_data.c_str());
@@ -34,6 +44,26 @@ namespace QuickMedia {
                     result_items->push_back(std::move(item));
                 }
             }, &result_items);
+        if(result != 0)
+            goto cleanup;
+
+        result = quickmedia_html_find_nodes_xpath(&html_search, "//span[class=\"yt-thumb-simple\"]//img",
+            [](QuickMediaHtmlNode *node, void *userdata) {
+                ItemData *item_data = (ItemData*)userdata;
+                if(item_data->index >= item_data->result_items->size())
+                    return;
+
+                const char *src = quickmedia_html_node_get_attribute_value(node, "src");
+                const char *data_thumb = quickmedia_html_node_get_attribute_value(node, "data-thumb");
+
+                if(src && contains(src, "i.ytimg.com/")) {
+                    (*item_data->result_items)[item_data->index]->thumbnail_url = src;
+                    ++item_data->index;
+                } else if(data_thumb && contains(data_thumb, "i.ytimg.com/")) {
+                    (*item_data->result_items)[item_data->index]->thumbnail_url = data_thumb;
+                    ++item_data->index;
+                }
+            }, &item_data);
 
         cleanup:
         quickmedia_html_search_deinit(&html_search);

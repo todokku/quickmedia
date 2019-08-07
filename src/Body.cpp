@@ -110,12 +110,11 @@ namespace QuickMedia {
         draw(window, pos, size, empty_object);
     }
 
-    // TODO: Skip drawing the rows that are outside the window.
     // TODO: Use a render target for the whole body so all images can be put into one.
-    // TODO: Only load images once they are visible on the screen.
+    // TODO: Unload thumbnails once they are no longer visible on the screen.
     // TODO: Load thumbnails with more than one thread.
     // TODO: Show chapters (rows) that have been read differently to make it easier to see what
-    // needs hasn't been read yet.
+    // hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
         const float font_height = title_text.getCharacterSize() + 8.0f;
         const float image_height = 100.0f;
@@ -159,10 +158,15 @@ namespace QuickMedia {
                 ++visible_rows;
         }
 
+        auto window_size = window.getSize();
+
         for(int i = first_visible_item + 1; i < num_items; ++i) {
             const auto &item = items[i];
-            assert(items.size() == item_thumbnail_textures.size());
             auto &item_thumbnail = item_thumbnail_textures[i];
+
+            if(pos.y >= window_size.y)
+                return;
+
             if(!item->visible)
                 continue;
 
