@@ -47,11 +47,15 @@ namespace QuickMedia {
         sf::Text progress_text;
         int selected_item;
         std::vector<std::unique_ptr<BodyItem>> items;
-        std::vector<std::shared_ptr<sf::Texture>> item_thumbnail_textures;
         std::thread thumbnail_load_thread;
         bool draw_thumbnails;
     private:
+        struct ThumbnailData {
+            std::string url;
+            std::shared_ptr<sf::Texture> texture;
+        };
         std::shared_ptr<sf::Texture> load_thumbnail_from_url(const std::string &url);
+        std::vector<ThumbnailData> item_thumbnail_textures;
         bool loading_thumbnail;
     };
 }

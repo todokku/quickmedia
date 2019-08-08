@@ -8,7 +8,6 @@
 #include <cmath>
 
 const int UI_VISIBLE_TIMEOUT_MS = 2500;
-const int DOUBLE_CLICK_TIME = 500;
 const auto pause_key = sf::Keyboard::Space;
 
 namespace QuickMedia {
@@ -61,10 +60,7 @@ namespace QuickMedia {
         mpvGl(nullptr),
         context(nullptr),
         textureBuffer(nullptr),
-        desired_size(width, height),
-        left_click_counter(0),
-        window(_window),
-        video_is_fullscreen(false)
+        desired_size(width, height)
     {
         //ContextScope context_scope(context.get());
         texture.setSmooth(true);
@@ -135,12 +131,9 @@ namespace QuickMedia {
 
         if(mpv) {
             //mpv_set_wakeup_callback(mpv, nullptr, nullptr);
-            //mpv_detach_destroy(mpv);
-            mpv_terminate_destroy(mpv);
+            mpv_destroy(mpv);
+            //mpv_terminate_destroy(mpv);
         }
-
-        if(video_is_fullscreen)
-            window->create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Default);
     }
 
     void VideoPlayer::handle_event(sf::Event &event) {
@@ -150,25 +143,7 @@ namespace QuickMedia {
             if(event.key.code == pause_key) {
                 mpv_command_string(mpv, "cycle pause");
             }
-        } else if(event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-            if(time_since_last_left_click.restart().asMilliseconds() <= DOUBLE_CLICK_TIME) {
-                if(++left_click_counter == 2) {
-                    on_doubleclick();
-                    left_click_counter = 0;
-                }
-            } else {
-                left_click_counter = 1;
-            }
         }
-    }
-
-    void VideoPlayer::on_doubleclick() {
-        if(video_is_fullscreen) {
-            window->create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Default);
-        } else {
-            window->create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Fullscreen);
-        }
-        video_is_fullscreen = !video_is_fullscreen;
     }
     
     void VideoPlayer::setPosition(float x, float y) {

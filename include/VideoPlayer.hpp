@@ -28,6 +28,9 @@ namespace QuickMedia {
         // Throws VideoInitializationException on error
         VideoPlayer(sf::RenderWindow *window, unsigned int width, unsigned int height, const char *file, bool loop = false);
         ~VideoPlayer();
+
+        VideoPlayer(const VideoPlayer&) = delete;
+        VideoPlayer& operator=(const VideoPlayer&) = delete;
         
         void handle_event(sf::Event &event);
         void setPosition(float x, float y);
@@ -40,9 +43,9 @@ namespace QuickMedia {
         // This is updated when mpv wants to render
         std::atomic_bool redraw;
         std::atomic_bool event_update;
+        // Important: Do not destroy the video player in this callback
         PlaybackEndedCallback onPlaybackEndedCallback;
     private:
-        void on_doubleclick();
         void handle_mpv_events();
     private:
         mpv_handle *mpv;
@@ -56,9 +59,5 @@ namespace QuickMedia {
         sf::RectangleShape seekbar;
         sf::RectangleShape seekbar_background;
         sf::Clock cursor_last_active_timer;
-        sf::Clock time_since_last_left_click;
-        int left_click_counter;
-        sf::RenderWindow *window;
-        bool video_is_fullscreen;
     };
 }

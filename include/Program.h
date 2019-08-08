@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-/* Return 0 if you want to continue reading */
+/* Return 0 if you want to continue reading. @data is null-terminated */
 typedef int (*ProgramOutputCallback)(char *data, int size, void *userdata);
 
 /*

@@ -39,7 +39,7 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
         char buffer[2048];
 
         for(;;) {
-            ssize_t bytes_read = read(fd[READ_END], buffer, sizeof(buffer));
+            ssize_t bytes_read = read(fd[READ_END], buffer, sizeof(buffer) - 1);
             if(bytes_read == 0) {
                 break;
             } else if(bytes_read == -1) {
@@ -49,6 +49,7 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
                 goto cleanup;
             }
 
+            buffer[bytes_read] = '\0';
             if(output_callback && output_callback(buffer, bytes_read, userdata) != 0)
                 break;
         }

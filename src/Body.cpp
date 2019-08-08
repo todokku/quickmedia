@@ -54,7 +54,7 @@ namespace QuickMedia {
 
     void Body::clear_items() {
         items.clear();
-        item_thumbnail_textures.clear();
+        //item_thumbnail_textures.clear();
     }
 
     BodyItem* Body::get_selected() const {
@@ -137,11 +137,8 @@ namespace QuickMedia {
         if(num_items == 0)
             return;
 
-        if((int)item_thumbnail_textures.size() != num_items) {
-            // First unload all textures, then prepare to load new textures
-            item_thumbnail_textures.resize(0);
+        if((int)item_thumbnail_textures.size() != num_items)
             item_thumbnail_textures.resize(num_items);
-        }
 
         float row_height = font_height;
         if(draw_thumbnails)
@@ -173,8 +170,15 @@ namespace QuickMedia {
             float row_height = font_height;
             if(draw_thumbnails) {
                 row_height = image_height;
-                if(!item->thumbnail_url.empty() && !item_thumbnail && !loading_thumbnail)
-                    item_thumbnail = load_thumbnail_from_url(item->thumbnail_url);
+                // TODO: Should this be optimized by instead of checking if url changes based on index,
+                // put thumbnails in hash map based on url?
+                if(item->thumbnail_url.empty() && item_thumbnail.texture) {
+                    item_thumbnail.texture = nullptr;
+                    item_thumbnail.url = "";
+                } else if(!item->thumbnail_url.empty() && !loading_thumbnail && (!item_thumbnail.texture || item_thumbnail.url != item->url)) {
+                    item_thumbnail.url = item->url;
+                    item_thumbnail.texture = load_thumbnail_from_url(item->thumbnail_url);
+                }
             }
 
             sf::Vector2f item_pos = pos;
@@ -198,8 +202,8 @@ namespace QuickMedia {
             if(draw_thumbnails) {
                 // TODO: Verify if this is safe. The thumbnail is being modified in another thread
                 // and it might not be fully finished before the native handle is set?
-                if(item_thumbnail && item_thumbnail->getNativeHandle() != 0) {
-                    image.setTexture(*item_thumbnail, true);
+                if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
+                    image.setTexture(*item_thumbnail.texture, true);
                     auto image_size = image.getTexture()->getSize();
                     auto height_ratio = image_height / image_size.y;
                     auto scale = image.getScale();
