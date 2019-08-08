@@ -32,3 +32,4 @@ Add option to scale image to window size.\
 If you search too fast the search suggestion wont show up and when you press enter it will clear and you wont progress.
 The search should wait until there are search results before clearing the search field and selecting the search suggestion.\
 Currently the video player doesn't have any UI and the only input that works is `ESC` (exit video) and `space` (toggle pause).
+Also full-screening a video doesn't work.

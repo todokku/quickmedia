@@ -50,7 +50,7 @@ namespace QuickMedia {
         const char *args[] = { "mpv", /*"--keep-open=yes", "--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
             "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
             "--cache-secs=120", "--demuxer-max-bytes=20M", "--demuxer-max-back-bytes=10M",
-            "--vo=gpu", "--hwdec=auto",
+            /*"--vo=gpu", "--hwdec=auto",*/
             "--wid", parent_window_str.c_str(), "--", path, nullptr };
         if(exec_program_async(args, &video_process_id) != 0)
             return Error::FAIL_TO_LAUNCH_PROCESS;
