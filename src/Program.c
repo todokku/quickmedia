@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
 #define READ_END 0
 #define WRITE_END 1
@@ -85,3 +86,62 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
         return result;
     }
 }
+
+int exec_program_async(const char **args, pid_t *result_process_id) {
+    /* 1 arguments */
+    if(args[0] == NULL)
+        return -1;
+
+    pid_t pid = fork();
+    if(pid == -1) {
+        int err = errno;
+        perror("Failed to fork");
+        return -err;
+    } else if(pid == 0) { /* child */
+        execvp(args[0], args);
+    } else { /* parent */
+        if(result_process_id)
+            *result_process_id = pid;
+    }
+    return 0;
+}
+
+#if 0
+int program_pipe_write(ProgramPipe *self, const char *data, size_t size) {
+    ssize_t bytes_written = write(self->write_fd, data, size);
+    if(bytes_written == -1) {
+        int err = errno;
+        perror("Failed to write to pipe to program");
+        return -err;
+    }
+    return 0;
+}
+
+int program_pipe_read(ProgramPipe *self, ProgramOutputCallback output_callback, void *userdata) {
+    char buffer[2048];
+
+    for(;;) {
+        ssize_t bytes_read = read(self->read_fd, buffer, sizeof(buffer) - 1);
+        if(bytes_read == 0) {
+            break;
+        } else if(bytes_read == -1) {
+            int err = errno;
+            perror("Failed to read from pipe to program");
+            return -err;
+        }
+
+        buffer[bytes_read] = '\0';
+        if(output_callback && output_callback(buffer, bytes_read, userdata) != 0)
+            break;
+    }
+
+    return 0;
+}
+
+void program_pipe_close(ProgramPipe *self) {
+    close(self->read_fd);
+    close(self->write_fd);
+    self->read_fd = -1;
+    self->write_fd = -1;
+}
+#endif

@@ -48,13 +48,12 @@ namespace QuickMedia {
 
         if(json_end == 0 || json_start >= json_end)
             return SuggestionResult::ERR;
-        --json_end;
 
         Json::Value json_root;
         Json::CharReaderBuilder json_builder;
         std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
         std::string json_errors;
-        if(json_reader->parse(&server_response[json_start], &server_response[json_end], &json_root, &json_errors)) {
+        if(!json_reader->parse(&server_response[json_start], &server_response[json_end], &json_root, &json_errors)) {
             fprintf(stderr, "Youtube suggestions json error: %s\n", json_errors.c_str());
             return SuggestionResult::ERR;
         }

@@ -1,275 +1,164 @@
 #include "../include/VideoPlayer.hpp"
-#include "../include/Scale.hpp"
-#include <SFML/Window/Mouse.hpp>
-#include <mpv/client.h>
-#include <mpv/render_gl.h>
-#include <SFML/OpenGL.hpp>
-#include <clocale>
-#include <cmath>
+#include "../include/Program.h"
+#include <string>
+#include <json/reader.h>
+#include <assert.h>
 
-const int UI_VISIBLE_TIMEOUT_MS = 2500;
-const auto pause_key = sf::Keyboard::Space;
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+
+const int RETRY_TIME_MS = 1000;
+const int MAX_RETRIES = 5;
 
 namespace QuickMedia {
-    static void* getProcAddressMpv(void *funcContext, const char *name) {
-        return (void*)sf::Context::getFunction(name);
-    }
-    
-    static void onMpvRedraw(void *ctx) {
-        VideoPlayer *video_player = (VideoPlayer*)ctx;
-        video_player->redraw = true;
-    }
-
-    static void on_mpv_events(void *ctx) {
-        VideoPlayer *video_player = (VideoPlayer*)ctx;
-        video_player->event_update = true;
-    }
-
-    static void check_error(int status) {
-        if(status < 0)
-            fprintf(stderr, "mpv api error: %s\n", mpv_error_string(status));
-    }
-
-    static void mpv_set_option_bool(mpv_handle *mpv, const char *option, bool value) {
-        int int_value = value;
-        check_error(mpv_set_option(mpv, option, MPV_FORMAT_FLAG, &int_value));
-    }
-
-    static void mpv_set_option_int64(mpv_handle *mpv, const char *option, int64_t value) {
-        check_error(mpv_set_option(mpv, option, MPV_FORMAT_INT64, &value));
-    }
-
-    class ContextScope {
-    public:
-        ContextScope(sf::Context *_context) : context(_context) {
-            context->setActive(true);
-        }
-
-        ~ContextScope() {
-            context->setActive(false);
-        }
-
-        sf::Context *context;
-    };
-    
-    VideoPlayer::VideoPlayer(sf::RenderWindow *_window, unsigned int width, unsigned int height, const char *file, bool loop) : 
-        redraw(false),
-        event_update(false),
-        onPlaybackEndedCallback(nullptr),
-        mpv(nullptr),
-        mpvGl(nullptr),
-        context(nullptr),
-        textureBuffer(nullptr),
-        desired_size(width, height)
+    VideoPlayer::VideoPlayer(EventCallbackFunc _event_callback) :
+        video_process_id(-1),
+        ipc_socket(-1),
+        connected_to_ipc(false),
+        connect_tries(0),
+        event_callback(_event_callback),
+        alive(true)
     {
-        //ContextScope context_scope(context.get());
-        texture.setSmooth(true);
         
-        // mpv_create requires LC_NUMERIC to be set to "C" for some reason, see mpv_create documentation
-        std::setlocale(LC_NUMERIC, "C");
-        mpv = mpv_create();
-        if(!mpv)
-            throw VideoInitializationException("Failed to create mpv handle");
-
-        //check_error(mpv_set_option_string(mpv, "input-default-bindings", "yes"));
-        //check_error(mpv_set_option_string(mpv, "input-vo-keyboard", "yes"));
-        check_error(mpv_set_option_string(mpv, "cache-secs", "120"));
-        check_error(mpv_set_option_string(mpv, "demuxer-max-bytes", "20M"));
-        check_error(mpv_set_option_string(mpv, "demuxer-max-back-bytes", "10M"));
-
-        //mpv_set_option_bool(mpv, "osc", true);
-        //mpv_set_option_int64(mpv, "wid", window.getSystemHandle());
-        
-        if(mpv_initialize(mpv) < 0)
-            throw VideoInitializationException("Failed to initialize mpv");
-
-        // TODO: Enabling vo=gpu will make mpv create its own window, or take over the QuickMedia window fully
-        // if "wid" option is used. To take advantage of vo=gpu, QuickMedia should create a parent window
-        // and make mpv use that and then embed that into the parent QuickMedia window.
-        // This will also remove the need for rendering with sfml (no need for texture copy!).
-        //check_error(mpv_set_option_string(mpv, "vo", "gpu"));
-        //check_error(mpv_set_option_string(mpv, "hwdec", "auto"));
-
-        //check_error(mpv_set_option_string(mpv, "terminal", "yes"));
-        //check_error(mpv_set_option_string(mpv, "msg-level", "all=v"));
-
-        if(loop)
-            check_error(mpv_set_option_string(mpv, "loop", "inf"));
-
-        //mpvGl = (mpv_opengl_cb_context*)mpv_get_sub_api(mpv, MPV_SUB_API_OPENGL_CB);
-        //if(!mpvGl)
-        //    throw VideoInitializationException("Failed to initialize mpv opengl render context");
-
-        mpv_opengl_init_params opengl_init_params;
-        opengl_init_params.get_proc_address = getProcAddressMpv;
-        opengl_init_params.get_proc_address_ctx = nullptr;
-        opengl_init_params.extra_exts = nullptr;
-        mpv_render_param params[] = {
-            { MPV_RENDER_PARAM_API_TYPE, (void*)MPV_RENDER_API_TYPE_OPENGL },
-            { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &opengl_init_params },
-            { (mpv_render_param_type)0, nullptr }
-        };
-
-        if (mpv_render_context_create(&mpvGl, mpv, params) < 0)
-            throw VideoInitializationException("failed to initialize mpv GL context");
-        
-        mpv_render_context_set_update_callback(mpvGl, onMpvRedraw, this);
-        mpv_set_wakeup_callback(mpv, on_mpv_events, this);
-        
-        seekbar.setFillColor(sf::Color(255, 20, 60, 200));
-        seekbar_background.setFillColor(sf::Color(33, 33, 33, 200));
-        load_file(file);
     }
-    
+
     VideoPlayer::~VideoPlayer() {
-        if(mpvGl) {
-            //mpv_render_context_set_update_callback(mpvGl, nullptr, nullptr);
-            mpv_render_context_free(mpvGl);
-        }
+        if(video_process_id != -1)
+            kill(video_process_id, SIGTERM);
 
-        free(textureBuffer);
-
-        if(mpv) {
-            //mpv_set_wakeup_callback(mpv, nullptr, nullptr);
-            mpv_destroy(mpv);
-            //mpv_terminate_destroy(mpv);
-        }
-    }
-
-    void VideoPlayer::handle_event(sf::Event &event) {
-        if(event.type == sf::Event::MouseMoved) {
-            cursor_last_active_timer.restart();
-        } else if(event.type == sf::Event::KeyPressed) {
-            if(event.key.code == pause_key) {
-                mpv_command_string(mpv, "cycle pause");
-            }
-        }
-    }
-    
-    void VideoPlayer::setPosition(float x, float y) {
-        sprite.setPosition(x, y);
-    }
-
-    // TODO: Make this work in the future when video size and sprite texture size wont be the same
-    void VideoPlayer::resize(const sf::Vector2f &size) {
-        desired_size = sf::Vector2f(size.x, size.y);
-        if(!textureBuffer)
-            return;
-
-        sf::Vector2f video_size_f(video_size.x, video_size.y);
-        auto video_scale = get_ratio(video_size_f, wrap_to_size(video_size_f, desired_size));
-        sprite.setScale(video_scale);
-
-        auto image_size = video_size_f;
-        image_size.x *= video_scale.x;
-        image_size.y *= video_scale.y;
-        sprite.setPosition(std::floor(desired_size.x * 0.5f - image_size.x * 0.5f), std::floor(desired_size.y * 0.5f - image_size.y * 0.5f));
-    }
-
-    void VideoPlayer::handle_mpv_events() {
-        while(true) {
-            mpv_event *mpvEvent = mpv_wait_event(mpv, 0.0);
-            if(mpvEvent->event_id == MPV_EVENT_NONE)
-                break;
-            else if(mpvEvent->event_id == MPV_EVENT_SHUTDOWN)
-                return;
-            else if(mpvEvent->event_id == MPV_EVENT_VIDEO_RECONFIG) {
-                int64_t w, h;
-                if (mpv_get_property(mpv, "dwidth", MPV_FORMAT_INT64, &w) >= 0 &&
-                    mpv_get_property(mpv, "dheight", MPV_FORMAT_INT64, &h) >= 0 &&
-                    w > 0 && h > 0 && (w != video_size.x || h != video_size.y))
-                {
-                    video_size.x = w;
-                    video_size.y = h;
-                    context.reset(new sf::Context(sf::ContextSettings(), w, h));
-                    context->setActive(true);
-                    // TODO: Verify if it's valid to re-create the texture like this,
-                    // instead of using deconstructor
-                    if(texture.create(w, h)) {
-                        void *newTextureBuf = realloc(textureBuffer, w * h * 4);
-                        if(newTextureBuf)
-                            textureBuffer = (sf::Uint8*)newTextureBuf;
-                    }
-                    glViewport(0, 0, w, h);
-                    context->setActive(false);
-                    resize(desired_size);
-                }
-            } else if(mpvEvent->event_id == MPV_EVENT_END_FILE) {
-                if(onPlaybackEndedCallback)
-                    onPlaybackEndedCallback();
-            } else {
-                //printf("Mpv event: %s\n", mpv_event_name(mpvEvent->event_id));
-            }
-        }
-    }
-    
-    void VideoPlayer::draw(sf::RenderWindow &window) {
-        if(event_update.exchange(false))
-            handle_mpv_events();
+        if(ipc_socket != -1)
+            close(ipc_socket);
         
-        if(textureBuffer && redraw) {
-            uint64_t update_flags = mpv_render_context_update(mpvGl);
-            if((update_flags & MPV_RENDER_UPDATE_FRAME) && redraw.exchange(false)) {
-                auto textureSize = texture.getSize();
+        if(video_process_id != -1)
+            remove(ipc_server_path);
 
-                mpv_opengl_fbo opengl_fbo;
-                opengl_fbo.fbo = 0;
-                opengl_fbo.w = textureSize.x;
-                opengl_fbo.h = textureSize.y;
-                opengl_fbo.internal_format = 0;
-                mpv_render_param params[] = 
-                {
-                    { MPV_RENDER_PARAM_OPENGL_FBO, &opengl_fbo },
-                    { (mpv_render_param_type)0, nullptr }
-                };
-                
-                context->setActive(true);
-                mpv_render_context_render(mpvGl, params);
-                // TODO: Instead of copying video to cpu buffer and then to texture, copy directly from video buffer to texture buffer
-                glReadPixels(0, 0, textureSize.x, textureSize.y, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
-                context->setActive(false);
-                texture.update(textureBuffer);
-                sprite.setTexture(texture, true);
-                mpv_render_context_report_swap(mpvGl);
+        alive = false;
+        if(event_read_thread.joinable())
+            event_read_thread.join();
+    }
+
+    VideoPlayer::Error VideoPlayer::launch_video_process(const char *path, sf::WindowHandle parent_window) {
+        if(!tmpnam(ipc_server_path)) {
+            perror("Failed to generate ipc file name");
+            return Error::FAIL_TO_GENERATE_IPC_FILENAME;
+        }
+
+        const std::string parent_window_str = std::to_string(parent_window);
+        const char *args[] = { "mpv", /*"--keep-open=yes", "--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
+            "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
+            "--cache-secs=120", "--demuxer-max-bytes=20M", "--demuxer-max-back-bytes=10M",
+            "--vo=gpu", "--hwdec=auto",
+            "--wid", parent_window_str.c_str(), "--", path, nullptr };
+        if(exec_program_async(args, &video_process_id) != 0)
+            return Error::FAIL_TO_LAUNCH_PROCESS;
+
+        printf("mpv input ipc server: %s\n", ipc_server_path);
+
+        if((ipc_socket = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            perror("Failed to create socket for video player");
+            return Error::FAIL_TO_CREATE_SOCKET;
+        }
+
+        ipc_addr.sun_family = AF_UNIX;
+        strcpy(ipc_addr.sun_path, ipc_server_path);
+
+        int flags = fcntl(ipc_socket, F_GETFL, 0);
+        fcntl(ipc_socket, F_SETFL, flags | O_NONBLOCK);
+
+        return Error::OK;
+    }
+
+    VideoPlayer::Error VideoPlayer::load_video(const char *path, sf::WindowHandle parent_window) {
+        if(video_process_id == -1)
+            return launch_video_process(path, parent_window);
+
+        std::string cmd = "loadfile ";
+        cmd += path;
+        return send_command(cmd.c_str(), cmd.size());
+    }
+
+    VideoPlayer::Error VideoPlayer::update() {
+        if(ipc_socket == -1)
+            return Error::INIT_FAILED;
+
+        if(connect_tries == MAX_RETRIES)
+            return Error::FAIL_TO_CONNECT_TIMEOUT;
+
+        if(!connected_to_ipc && ipc_connect_retry_timer.getElapsedTime().asMilliseconds() >= RETRY_TIME_MS) {
+            if(connect(ipc_socket, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
+                ++connect_tries;
+                if(connect_tries == MAX_RETRIES) {
+                    fprintf(stderr, "Failed to connect to mpv ipc after 5 seconds, last error: %s\n", strerror(errno));
+                    return Error::FAIL_TO_CONNECT_TIMEOUT;
+                }
+            } else {
+                connected_to_ipc = true;
+                if(event_callback)
+                    event_read_thread = std::thread(&VideoPlayer::read_ipc_func, this);
             }
         }
-        window.draw(sprite);
 
-        if(cursor_last_active_timer.getElapsedTime().asMilliseconds() > UI_VISIBLE_TIMEOUT_MS)
-            return;
+        return Error::OK;
+    }
 
-        double pos = 0.0;
-        mpv_get_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &pos);
-        pos *= 0.01;
+    void VideoPlayer::read_ipc_func() {
+        assert(connected_to_ipc);
+        assert(event_callback);
 
-        auto window_size = window.getSize();
+        Json::Value json_root;
+        Json::CharReaderBuilder json_builder;
+        std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
+        std::string json_errors;
 
-        const float seekbar_height = std::floor(window_size.y * 0.02f);
-        const float seekbar_max_size = window_size.x;
-        sf::Vector2f seekbar_size(seekbar_max_size * pos, seekbar_height);
-        seekbar.setPosition(0.0f, window_size.y - seekbar_height);
-        seekbar.setSize(seekbar_size);
-        window.draw(seekbar);
+        char buffer[2048];
+        while(alive) {
+            ssize_t bytes_read = read(ipc_socket, buffer, sizeof(buffer));
+            if(bytes_read == -1) {
+                int err = errno;
+                if(err == EAGAIN) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    continue;
+                }
 
-        seekbar_background.setPosition(seekbar.getPosition() + sf::Vector2f(seekbar_size.x, 0.0f));
-        seekbar_background.setSize(sf::Vector2f(seekbar_max_size - seekbar_size.x, seekbar_height));
-        window.draw(seekbar_background);
+                fprintf(stderr, "Failed to read from ipc socket, error: %s\n", strerror(err));
+                break;
+            } else if(bytes_read > 0) {
+                int start = 0;
+                for(int i = 0; i < bytes_read; ++i) {
+                    if(buffer[i] != '\n')
+                        continue;
 
-        if(sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
-            auto mouse_pos = sf::Mouse::getPosition(window);
-            auto seekbar_pos = seekbar.getPosition();
-            float diff_x = mouse_pos.x - seekbar_pos.x;
-            if(mouse_pos.x >= seekbar_pos.x && mouse_pos.x <= seekbar_pos.x + seekbar_max_size &&
-                mouse_pos.y >= seekbar_pos.y && mouse_pos.y <= seekbar_pos.y + seekbar_height)
-            {
-                double new_pos = ((double)diff_x / seekbar_max_size) * 100.0;
-                mpv_set_property(mpv, "percent-pos", MPV_FORMAT_DOUBLE, &new_pos);
+                    if(json_reader->parse(buffer + start, buffer + i, &json_root, &json_errors)) {
+                        const Json::Value &event = json_root["event"];
+                        if(event.isString())
+                            event_callback(event.asCString());
+                    } else {
+                        fprintf(stderr, "Failed to parse json for ipc: |%.*s|, reason: %s\n", (int)bytes_read, buffer, json_errors.c_str());
+                    }
+
+                    start = i + 1;
+                }
             }
         }
     }
 
-    void VideoPlayer::load_file(const std::string &path) {
-        const char *cmd[] = { "loadfile", path.c_str(), nullptr };
-        mpv_command(mpv, cmd);
+    VideoPlayer::Error VideoPlayer::toggle_pause() {
+        const char cmd[] = "cycle pause\n";
+        return send_command(cmd, sizeof(cmd) - 1);
+    }
+
+    VideoPlayer::Error VideoPlayer::send_command(const char *cmd, size_t size) {
+        if(!connected_to_ipc)
+            return Error::FAIL_NOT_CONNECTED;
+
+        if(send(ipc_socket, cmd, size, 0) == -1) {
+            fprintf(stderr, "Failed to send to ipc socket, error: %s, command: %.*s\n", strerror(errno), (int)size, cmd);
+            return Error::FAIL_TO_SEND;
+        }
+
+        return Error::OK;
     }
 }

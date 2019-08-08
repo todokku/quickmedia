@@ -1,12 +1,13 @@
 #include "../include/QuickMedia.hpp"
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
-#include "../include/VideoPlayer.hpp"
 #include "../include/Scale.hpp"
 #include "../include/Program.h"
+#include "../include/VideoPlayer.hpp"
 #include <cppcodec/base64_rfc4648.hpp>
 
 #include <SFML/Graphics/RectangleShape.hpp>
+#include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window/Event.hpp>
 #include <json/reader.h>
@@ -14,10 +15,18 @@
 #include <assert.h>
 #include <cmath>
 #include <string.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#include <signal.h>
 
 const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
 const int DOUBLE_CLICK_TIME = 500;
+
+// Prevent writing to broken pipe from exiting the program
+static void sigpipe_handler(int unused) {
+
+}
 
 namespace QuickMedia {
     Program::Program() :
@@ -35,6 +44,12 @@ namespace QuickMedia {
         }
         body = new Body(font);
         search_bar = std::make_unique<SearchBar>(font);
+
+        struct sigaction action;
+        action.sa_handler = sigpipe_handler;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        sigaction(SIGPIPE, &action, NULL);
     }
 
     Program::~Program() {
@@ -316,64 +331,86 @@ namespace QuickMedia {
         #endif
     }
 
+    struct XDisplayScope {
+        XDisplayScope(Display *_display) : display(_display) {
+
+        }
+
+        ~XDisplayScope() {
+            if(display)
+                XCloseDisplay(display);
+        }
+
+        Display *display;
+    };
+
     void Program::video_content_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
 
+        Display* disp = XOpenDisplay(NULL);
+        if (!disp)
+            throw std::runtime_error("Failed to open display to X11 server");
+        XDisplayScope display_scope(disp);
+
+        #if 0
+        sf::RenderWindow video_window(sf::VideoMode(300, 300), "QuickMedia Video Player");
+        video_window.setVerticalSyncEnabled(true);
+        XReparentWindow(disp, video_window.getSystemHandle(), window.getSystemHandle(), 0, 0);
+        XMapWindow(disp, video_window.getSystemHandle());
+        XSync(disp, False);
+        video_window.setSize(sf::Vector2u(400, 300));
+        #endif
+
         // This variable is needed because calling play_video is not possible in onPlaybackEndedCallback
         bool play_next_video = false;
 
-        auto onPlaybackEndedCallback = [this, &play_next_video]() {
-            std::string new_video_url;
-            std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(content_url);
-            // Find video that hasn't been played before in this video session
-            for(auto it = related_media.begin(), end = related_media.end(); it != end; ++it) {
-                if(watched_videos.find((*it)->url) == watched_videos.end()) {
-                    new_video_url = (*it)->url;
-                    break;
-                }
-            }
+        std::unique_ptr<VideoPlayer> video_player;
 
-            // If there are no videos to play, then dont play any...
-            if(new_video_url.empty()) {
-                show_notification("Video player", "No more related videos to play");
-                return;
-            }
-
-            content_url = std::move(new_video_url);
-            play_next_video = true;
-            // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
-            //video_player->load_file(video_url);
-        };
-
-        std::unique_ptr<VideoPlayer> video_player = nullptr;
-        auto play_video = [this, &video_player, &onPlaybackEndedCallback]() {
+        auto play_video = [this, &video_player, &play_next_video]() {
+            printf("Playing video: %s\n", content_url.c_str());
             watched_videos.insert(content_url);
-            try {
-                printf("Play video: %s\n", content_url.c_str());
-                video_player.reset(new VideoPlayer(&window, window_size.x, window_size.y, content_url.c_str()));
-                video_player->onPlaybackEndedCallback = onPlaybackEndedCallback;
-            } catch(VideoInitializationException &e) {
-                show_notification("Video player", "Failed to create video player", Urgency::CRITICAL);
-                video_player = nullptr;
+            video_player = std::make_unique<VideoPlayer>([this, &play_next_video](const char *event_name) {
+                if(strcmp(event_name, "end-file") == 0) {
+                    std::string new_video_url;
+                    std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(content_url);
+                    // Find video that hasn't been played before in this video session
+                    for(auto it = related_media.begin(), end = related_media.end(); it != end; ++it) {
+                        if(watched_videos.find((*it)->url) == watched_videos.end()) {
+                            new_video_url = (*it)->url;
+                            break;
+                        }
+                    }
+
+                    // If there are no videos to play, then dont play any...
+                    if(new_video_url.empty()) {
+                        show_notification("Video player", "No more related videos to play");
+                        current_page = Page::SEARCH_SUGGESTION;
+                        return;
+                    }
+
+                    content_url = std::move(new_video_url);
+                    play_next_video = true;
+                    // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
+                    //video_player->load_file(video_url);
+                }
+            });
+
+            VideoPlayer::Error err = video_player->load_video(content_url.c_str(), window.getSystemHandle());
+            if(err != VideoPlayer::Error::OK) {
+                std::string err_msg = "Failed to play url: ";
+                err_msg += content_url;
+                show_notification("Video player", err_msg.c_str(), Urgency::CRITICAL);
+                current_page = Page::SEARCH_SUGGESTION;
             }
         };
         play_video();
 
         sf::Clock time_since_last_left_click;
         int left_click_counter;
-        bool video_is_fullscreen = false;
         sf::Event event;
 
-        auto on_doubleclick = [this, &video_is_fullscreen]() {
-            if(video_is_fullscreen) {
-                window.create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Default);
-            } else {
-                window.create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Fullscreen);
-            }
-            window.setVerticalSyncEnabled(true);
-            video_is_fullscreen = !video_is_fullscreen;
-        };
+        sf::RectangleShape rect(sf::Vector2f(500, 500));
 
         while (current_page == Page::VIDEO_CONTENT) {
             if(play_next_video) {
@@ -383,33 +420,61 @@ namespace QuickMedia {
 
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized) {
+                    //video_window.setSize(sf::Vector2u(event.size.width, event.size.height));
+                } else if(event.key.code == sf::Keyboard::Space) {
+                    if(video_player->toggle_pause() != VideoPlayer::Error::OK) {
+                        fprintf(stderr, "Failed to toggle pause!\n");
+                    }
+                }
+            }
+
+            #if 0
+            while(video_window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed) {
+                    current_page = Page::EXIT;
+                } else if(event.type == sf::Event::Resized) {
+                    sf::FloatRect visible_area(0, 0, event.size.width, event.size.height);
+                    video_window.setView(sf::View(visible_area));
+                } else if(event.type == sf::Event::KeyPressed) {
+                    if(event.key.code == sf::Keyboard::Escape) {
+                        current_page = Page::SEARCH_SUGGESTION;
+                        return;
+                    }
+
+                    if(event.key.code == sf::Keyboard::Space) {
+                        if(video_player.toggle_pause() != VideoPlayer::Error::OK) {
+                            fprintf(stderr, "Failed to toggle pause!\n");
+                        }
+                    }
+                }
+
                 if(event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                     if(time_since_last_left_click.restart().asMilliseconds() <= DOUBLE_CLICK_TIME) {
                         if(++left_click_counter == 2) {
-                            on_doubleclick();
+                            //on_doubleclick();
                             left_click_counter = 0;
                         }
                     } else {
                         left_click_counter = 1;
                     }
                 }
+            }
+            #endif
 
-                if(video_player) {
-                    if(event.type == sf::Event::Resized)
-                        video_player->resize(window_size);
-                    video_player->handle_event(event);
-                }
+            VideoPlayer::Error update_err = video_player->update();
+            if(update_err == VideoPlayer::Error::FAIL_TO_CONNECT_TIMEOUT) {
+                show_notification("Video player", "Failed to connect to mpv ipc after 5 seconds", Urgency::CRITICAL);
+                current_page = Page::SEARCH_SUGGESTION;
+                return;
             }
 
             window.clear();
-            if(video_player)
-                video_player->draw(window);
             window.display();
-        }
 
-        if(video_is_fullscreen) {
-            window.create(sf::VideoMode::getDesktopMode(), "QuickMedia", sf::Style::Default);
-            window.setVerticalSyncEnabled(true);
+            // TODO: Show loading video animation
+            //video_window.clear(sf::Color::Red);
+            //video_window.display();
         }
     }
 

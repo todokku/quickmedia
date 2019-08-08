@@ -67,7 +67,7 @@ namespace QuickMedia {
         Json::CharReaderBuilder json_builder;
         std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
         std::string json_errors;
-        if(json_reader->parse(&server_response.front(), &server_response.back(), &json_root, &json_errors)) {
+        if(!json_reader->parse(&server_response[0], &server_response[server_response.size()], &json_root, &json_errors)) {
             fprintf(stderr, "Manganelo suggestions json error: %s\n", json_errors.c_str());
             return SuggestionResult::ERR;
         }

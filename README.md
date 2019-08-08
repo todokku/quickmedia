@@ -11,8 +11,9 @@ Press `space` to pause/unpause video. `Double-click` video to fullscreen or leav
 See project.conf \[dependencies].
 ## Runtime
 ### Required
-`curl` needs to be downloaded for network requests.
+`curl` is required for network requests.
 ### Optional
+`mpv` is required for playing videos. This is not required if you dont plan on playing videos.\
 `youtube-dl` needs to be installed to play videos from youtube.\
 `notify-send` needs to be installed to show notifications (on Linux and other systems that uses d-bus notification system).
 # TODO
@@ -29,4 +30,5 @@ Add grid-view when thumbnails are visible.\
 Add scrollbar.\
 Add option to scale image to window size.\
 If you search too fast the search suggestion wont show up and when you press enter it will clear and you wont progress.
-The search should wait until there are search results before clearing the search field and selecting the search suggestion.
+The search should wait until there are search results before clearing the search field and selecting the search suggestion.\
+Currently the video player doesn't have any UI and the only input that works is `ESC` (exit video) and `space` (toggle pause).

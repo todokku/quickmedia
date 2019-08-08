@@ -28,11 +28,13 @@ namespace QuickMedia {
     }
 
     DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
-        std::vector<const char*> args = { "curl", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L", url.c_str() };
+        std::vector<const char*> args = { "curl", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L" };
         for(const CommandArg &arg : additional_args) {
             args.push_back(arg.option.c_str());
             args.push_back(arg.value.c_str());
         }
+        args.push_back("--");
+        args.push_back(url.c_str());
         args.push_back(nullptr);
         if(exec_program(args.data(), accumulate_string, &result) != 0)
             return DownloadResult::NET_ERR;
