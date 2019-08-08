@@ -23,6 +23,7 @@ namespace QuickMedia {
 
         TextUpdateCallback onTextUpdateCallback;
         TextSubmitCallback onTextSubmitCallback;
+        int text_autosearch_delay;
     private:
         sf::Text text;
         sf::RectangleShape background;

@@ -41,7 +41,7 @@ namespace QuickMedia {
         delete current_plugin;
     }
 
-    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, Page &next_page, std::string &selected_title, std::string &selected_url) {
+    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, std::string &selected_title, std::string &selected_url) {
         BodyItem *selected_item = body->get_selected();
         if(!selected_item)
             return SearchResult::ERR;
@@ -49,7 +49,7 @@ namespace QuickMedia {
         selected_title = selected_item->title;
         selected_url = selected_item->url;
         body->clear_items();
-        SearchResult search_result = plugin->search(!selected_url.empty() ? selected_url : selected_title, body->items, next_page);
+        SearchResult search_result = plugin->search(!selected_url.empty() ? selected_url : selected_title, body->items);
         body->reset_selected();
         return search_result;
     }
@@ -84,6 +84,8 @@ namespace QuickMedia {
             return -1;
         }
 
+        search_bar->text_autosearch_delay = current_plugin->get_search_delay();
+
         while(window.isOpen()) {
             switch(current_page) {
                 case Page::EXIT:
@@ -93,10 +95,12 @@ namespace QuickMedia {
                     body->draw_thumbnails = current_plugin->search_suggestions_has_thumbnails();
                     search_suggestion_page();
                     break;
+#if 0
                 case Page::SEARCH_RESULT:
                     body->draw_thumbnails = current_plugin->search_results_has_thumbnails();
                     search_result_page();
                     break;
+#endif
                 case Page::VIDEO_CONTENT:
                     body->draw_thumbnails = false;
                     video_content_page();
@@ -201,8 +205,8 @@ namespace QuickMedia {
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
-            Page next_page;
-            if(search_selected_suggestion(body, current_plugin, next_page, content_title, content_url) == SearchResult::OK) {
+            Page next_page = current_plugin->get_page_after_search();
+            if(search_selected_suggestion(body, current_plugin, content_title, content_url) == SearchResult::OK) {
                 if(next_page == Page::EPISODE_LIST) {
                     Path content_storage_dir = get_storage_dir().join("manga");
                     if(create_directory_recursive(content_storage_dir) != 0) {
@@ -261,6 +265,7 @@ namespace QuickMedia {
     }
 
     void Program::search_result_page() {
+        #if 0
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
             body->clamp_selection();
@@ -307,23 +312,24 @@ namespace QuickMedia {
             search_bar->draw(window);
             window.display();
         }
+        #endif
     }
 
     void Program::video_content_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
 
-        watched_videos.insert(video_url);
+        watched_videos.insert(content_url);
         std::unique_ptr<VideoPlayer> video_player = nullptr;
         try {
-            printf("Play video: %s\n", video_url.c_str());
-            video_player.reset(new VideoPlayer(window, window_size.x, window_size.y, video_url.c_str()));
+            printf("Play video: %s\n", content_url.c_str());
+            video_player.reset(new VideoPlayer(window, window_size.x, window_size.y, content_url.c_str()));
         } catch(VideoInitializationException &e) {
             show_notification("Video player", "Failed to create video player", Urgency::CRITICAL);
             video_player = nullptr;
         }
 
-        std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(video_url);
+        std::vector<std::unique_ptr<BodyItem>> related_media = current_plugin->get_related_media(content_url);
         bool reload = false;
 
         if(video_player) {
@@ -342,8 +348,8 @@ namespace QuickMedia {
                 if(new_video_url.empty())
                     return;
 
-                video_url = std::move(new_video_url);
-                related_media = current_plugin->get_related_media(video_url);
+                content_url = std::move(new_video_url);
+                related_media = current_plugin->get_related_media(content_url);
                 // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
                 //video_player->load_file(video_url);
                 reload = true;
@@ -443,6 +449,7 @@ namespace QuickMedia {
                 }
             }
 
+            // TODO: This code is duplicated in many places. Handle it in one place.
             if(resized) {
                 search_bar->onWindowResize(window_size);
 

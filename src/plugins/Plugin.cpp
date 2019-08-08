@@ -10,6 +10,12 @@ static int accumulate_string(char *data, int size, void *userdata) {
 }
 
 namespace QuickMedia {
+    SearchResult Plugin::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+        (void)text;
+        (void)result_items;
+        return SearchResult::OK;
+    }
+
     SuggestionResult Plugin::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
         (void)text;
         (void)result_items;

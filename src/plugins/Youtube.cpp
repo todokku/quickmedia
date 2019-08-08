@@ -12,14 +12,72 @@ namespace QuickMedia {
         return strstr(str, substr);
     }
 
-    SearchResult Youtube::search(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) {
-        next_page = Page::SEARCH_RESULT;
+    static void iterate_suggestion_result(const Json::Value &value, std::vector<std::unique_ptr<BodyItem>> &result_items, int &iterate_count) {
+        ++iterate_count;
+        if(value.isArray()) {
+            for(const Json::Value &child : value) {
+                iterate_suggestion_result(child, result_items, iterate_count);
+            }
+        } else if(value.isString() && iterate_count > 2) {
+            std::string title = value.asString();
+            auto item = std::make_unique<BodyItem>(title);
+            result_items.push_back(std::move(item));
+        }
+    }
+
+    // TODO: Speed this up by using string.find instead of parsing html
+    SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+        // Keep this for backup. This is using search suggestion the same way youtube does it, but the results
+        // are not as good as doing an actual search.
+        #if 0
+        std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gs_rn=64&gs_ri=youtube&ds=yt&cp=7&gs_id=x&q=";
+        url += url_param_encode(text);
+
+        std::string server_response;
+        if(download_to_string(url, server_response) != DownloadResult::OK)
+            return SuggestionResult::NET_ERR;
+
+        size_t json_start = server_response.find_first_of('(');
+        if(json_start == std::string::npos)
+            return SuggestionResult::ERR;
+        ++json_start;
+
+        size_t json_end = server_response.find_last_of(')');
+        if(json_end == std::string::npos)
+            return SuggestionResult::ERR;
+
+        if(json_end == 0 || json_start >= json_end)
+            return SuggestionResult::ERR;
+        --json_end;
+
+        Json::Value json_root;
+        Json::CharReaderBuilder json_builder;
+        std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
+        std::string json_errors;
+        if(json_reader->parse(&server_response[json_start], &server_response[json_end], &json_root, &json_errors)) {
+            fprintf(stderr, "Youtube suggestions json error: %s\n", json_errors.c_str());
+            return SuggestionResult::ERR;
+        }
+
+        int iterate_count = 0;
+        iterate_suggestion_result(json_root, result_items, iterate_count);
+        bool found_search_text = false;
+        for(auto &item : result_items) {
+            if(item->title == text) {
+                found_search_text = true;
+                break;
+            }
+        }
+        if(!found_search_text)
+            result_items.insert(result_items.begin(), std::make_unique<BodyItem>(text));
+        return SuggestionResult::OK;
+        #endif
         std::string url = "https://youtube.com/results?search_query=";
         url += url_param_encode(text);
 
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
-            return SearchResult::NET_ERR;
+            return SuggestionResult::NET_ERR;
 
         struct ItemData {
             std::vector<std::unique_ptr<BodyItem>> *result_items;
@@ -67,64 +125,7 @@ namespace QuickMedia {
 
         cleanup:
         quickmedia_html_search_deinit(&html_search);
-        return result == 0 ? SearchResult::OK : SearchResult::ERR;
-    }
-
-    static void iterate_suggestion_result(const Json::Value &value, std::vector<std::unique_ptr<BodyItem>> &result_items, int &iterate_count) {
-        ++iterate_count;
-        if(value.isArray()) {
-            for(const Json::Value &child : value) {
-                iterate_suggestion_result(child, result_items, iterate_count);
-            }
-        } else if(value.isString() && iterate_count > 2) {
-            std::string title = value.asString();
-            auto item = std::make_unique<BodyItem>(title);
-            result_items.push_back(std::move(item));
-        }
-    }
-
-    SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
-        std::string url = "https://clients1.google.com/complete/search?client=youtube&hl=en&gs_rn=64&gs_ri=youtube&ds=yt&cp=7&gs_id=x&q=";
-        url += url_param_encode(text);
-
-        std::string server_response;
-        if(download_to_string(url, server_response) != DownloadResult::OK)
-            return SuggestionResult::NET_ERR;
-
-        size_t json_start = server_response.find_first_of('(');
-        if(json_start == std::string::npos)
-            return SuggestionResult::ERR;
-        ++json_start;
-
-        size_t json_end = server_response.find_last_of(')');
-        if(json_end == std::string::npos)
-            return SuggestionResult::ERR;
-
-        if(json_end == 0 || json_start >= json_end)
-            return SuggestionResult::ERR;
-        --json_end;
-
-        Json::Value json_root;
-        Json::CharReaderBuilder json_builder;
-        std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
-        std::string json_errors;
-        if(json_reader->parse(&server_response[json_start], &server_response[json_end], &json_root, &json_errors)) {
-            fprintf(stderr, "Youtube suggestions json error: %s\n", json_errors.c_str());
-            return SuggestionResult::ERR;
-        }
-
-        int iterate_count = 0;
-        iterate_suggestion_result(json_root, result_items, iterate_count);
-        bool found_search_text = false;
-        for(auto &item : result_items) {
-            if(item->title == text) {
-                found_search_text = true;
-                break;
-            }
-        }
-        if(!found_search_text)
-            result_items.insert(result_items.begin(), std::make_unique<BodyItem>(text));
-        return SuggestionResult::OK;
+        return result == 0 ? SuggestionResult::OK : SuggestionResult::ERR;
     }
 
     std::vector<std::unique_ptr<BodyItem>> Youtube::get_related_media(const std::string &url) {

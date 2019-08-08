@@ -12,6 +12,7 @@ namespace QuickMedia {
     SearchBar::SearchBar(sf::Font &font) :
         onTextUpdateCallback(nullptr),
         onTextSubmitCallback(nullptr),
+        text_autosearch_delay(0),
         text("Search...", font, 18), 
         show_placeholder(true),
         updated_search(false)
@@ -29,7 +30,7 @@ namespace QuickMedia {
     }
 
     void SearchBar::update() {
-        if(updated_search && time_since_search_update.getElapsedTime().asMilliseconds() >= 150) {
+        if(updated_search && time_since_search_update.getElapsedTime().asMilliseconds() >= text_autosearch_delay) {
             updated_search = false;
             sf::String str = text.getString();
             if(show_placeholder)

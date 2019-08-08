@@ -3,9 +3,7 @@
 #include <json/reader.h>
 
 namespace QuickMedia {
-    SearchResult Manganelo::search(const std::string &url, std::vector<std::unique_ptr<BodyItem>> &result_items, Page &next_page) {
-        next_page = Page::EPISODE_LIST;
-
+    SearchResult Manganelo::search(const std::string &url, std::vector<std::unique_ptr<BodyItem>> &result_items) {
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
             return SearchResult::NET_ERR;

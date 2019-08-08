@@ -35,7 +35,6 @@ namespace QuickMedia {
         std::unique_ptr<SearchBar> search_bar;
         Page current_page;
         // TODO: Combine these
-        std::string video_url;
         std::string images_url;
         std::string content_title;
         std::string content_url;
