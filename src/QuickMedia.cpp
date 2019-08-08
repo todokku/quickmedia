@@ -323,7 +323,7 @@ namespace QuickMedia {
         std::unique_ptr<VideoPlayer> video_player = nullptr;
         try {
             printf("Play video: %s\n", content_url.c_str());
-            video_player.reset(new VideoPlayer(window, window_size.x, window_size.y, content_url.c_str()));
+            video_player.reset(new VideoPlayer(&window, window_size.x, window_size.y, content_url.c_str()));
         } catch(VideoInitializationException &e) {
             show_notification("Video player", "Failed to create video player", Urgency::CRITICAL);
             video_player = nullptr;
@@ -365,7 +365,7 @@ namespace QuickMedia {
                 if(video_player) {
                     if(event.type == sf::Event::Resized)
                         video_player->resize(window_size);
-                    video_player->handleEvent(event);
+                    video_player->handle_event(event);
                 }
             }
 

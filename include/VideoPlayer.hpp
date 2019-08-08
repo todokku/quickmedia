@@ -26,10 +26,10 @@ namespace QuickMedia {
     class VideoPlayer {
     public:
         // Throws VideoInitializationException on error
-        VideoPlayer(sf::RenderWindow &window, unsigned int width, unsigned int height, const char *file, bool loop = false);
+        VideoPlayer(sf::RenderWindow *window, unsigned int width, unsigned int height, const char *file, bool loop = false);
         ~VideoPlayer();
         
-        void handleEvent(sf::Event &event);
+        void handle_event(sf::Event &event);
         void setPosition(float x, float y);
         void resize(const sf::Vector2f &size);
         void draw(sf::RenderWindow &window);
@@ -42,6 +42,7 @@ namespace QuickMedia {
         std::atomic_bool event_update;
         PlaybackEndedCallback onPlaybackEndedCallback;
     private:
+        void on_doubleclick();
         void handle_mpv_events();
     private:
         mpv_handle *mpv;
@@ -55,5 +56,9 @@ namespace QuickMedia {
         sf::RectangleShape seekbar;
         sf::RectangleShape seekbar_background;
         sf::Clock cursor_last_active_timer;
+        sf::Clock time_since_last_left_click;
+        int left_click_counter;
+        sf::RenderWindow *window;
+        bool video_is_fullscreen;
     };
 }
