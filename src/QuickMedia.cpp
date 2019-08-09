@@ -215,16 +215,16 @@ namespace QuickMedia {
             update_search_text = text;
         };
 
-        search_bar->onTextSubmitCallback = [this](const std::string &text) {
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
             Page next_page = current_plugin->get_page_after_search();
             if(search_selected_suggestion(body, current_plugin, content_title, content_url) != SearchResult::OK)
-                return;
+                return false;
 
             if(next_page == Page::EPISODE_LIST) {
                 Path content_storage_dir = get_storage_dir().join("manga");
                 if(create_directory_recursive(content_storage_dir) != 0) {
                     show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
-                    return;
+                    return false;
                 }
 
                 content_storage_file = content_storage_dir.join(base64_encode(content_title));
@@ -239,6 +239,7 @@ namespace QuickMedia {
                     next_page = Page::SEARCH_RESULT;
             }
             current_page = next_page;
+            return true;
         };
 
         sf::Vector2f body_pos;
@@ -575,10 +576,10 @@ namespace QuickMedia {
             body->clamp_selection();
         };
 
-        search_bar->onTextSubmitCallback = [this](const std::string &text) {
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
             BodyItem *selected_item = body->get_selected();
             if(!selected_item)
-                return;
+                return false;
 
             images_url = selected_item->url;
             chapter_title = selected_item->title;
@@ -594,7 +595,8 @@ namespace QuickMedia {
                         image_index = current.asInt() - 1;
                 }
             }
-    
+
+            return true;
         };
 
         const Json::Value &json_chapters = content_storage_json["chapters"];

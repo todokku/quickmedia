@@ -8,7 +8,8 @@
 
 namespace QuickMedia {
     using TextUpdateCallback = std::function<void(const sf::String &text)>;
-    using TextSubmitCallback = std::function<void(const sf::String &text)>;
+    // Return true to consume the search (clear the search field)
+    using TextSubmitCallback = std::function<bool(const sf::String &text)>;
 
     class SearchBar {
     public:

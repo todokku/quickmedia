@@ -63,10 +63,11 @@ namespace QuickMedia {
                 time_since_search_update.restart();
             }
         } else if(codepoint == 13) { // Return
+            bool clear_search = true;
             if(onTextSubmitCallback)
-                onTextSubmitCallback(text.getString());
+                clear_search = onTextSubmitCallback(text.getString());
 
-            if(!show_placeholder) {
+            if(clear_search && !show_placeholder) {
                 show_placeholder = true;
                 text.setString("Search...");
                 text.setFillColor(text_placeholder_color);
