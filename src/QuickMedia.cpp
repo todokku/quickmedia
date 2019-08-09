@@ -214,25 +214,28 @@ namespace QuickMedia {
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
             Page next_page = current_plugin->get_page_after_search();
-            if(search_selected_suggestion(body, current_plugin, content_title, content_url) == SearchResult::OK) {
-                if(next_page == Page::EPISODE_LIST) {
-                    Path content_storage_dir = get_storage_dir().join("manga");
-                    if(create_directory_recursive(content_storage_dir) != 0) {
-                        show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
-                        return;
-                    }
+            if(search_selected_suggestion(body, current_plugin, content_title, content_url) != SearchResult::OK)
+                return;
 
-                    content_storage_file = content_storage_dir.join(base64_encode(content_title));
-                    content_storage_json.clear();
-                    content_storage_json["name"] = content_title;
-                    FileType file_type = get_file_type(content_storage_file);
-                    if(file_type == FileType::REGULAR)
-                        get_manga_storage_json(content_storage_file, content_storage_json);
-                } else if(next_page == Page::VIDEO_CONTENT) {
-                    watched_videos.clear();
+            if(next_page == Page::EPISODE_LIST) {
+                Path content_storage_dir = get_storage_dir().join("manga");
+                if(create_directory_recursive(content_storage_dir) != 0) {
+                    show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
+                    return;
                 }
-                current_page = next_page;
+
+                content_storage_file = content_storage_dir.join(base64_encode(content_title));
+                content_storage_json.clear();
+                content_storage_json["name"] = content_title;
+                FileType file_type = get_file_type(content_storage_file);
+                if(file_type == FileType::REGULAR)
+                    get_manga_storage_json(content_storage_file, content_storage_json);
+            } else if(next_page == Page::VIDEO_CONTENT) {
+                watched_videos.clear();
+                if(content_url.empty())
+                    next_page = Page::SEARCH_RESULT;
             }
+            current_page = next_page;
         };
 
         sf::Vector2f body_pos;
@@ -276,9 +279,12 @@ namespace QuickMedia {
             }
 
             if(search_running && search_suggestion_future.valid() && search_suggestion_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                body->clear_items();
-                body->items = search_suggestion_future.get();
-                body->clamp_selection();
+                if(update_search_text.empty()) {
+                    body->items = search_suggestion_future.get();
+                    body->clamp_selection();
+                } else {
+                    search_suggestion_future.get();
+                }
                 search_running = false;
             }
 

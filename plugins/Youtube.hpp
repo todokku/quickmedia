@@ -9,7 +9,7 @@ namespace QuickMedia {
         BodyItems get_related_media(const std::string &url) override;
         bool search_suggestions_has_thumbnails() const override { return true; }
         bool search_results_has_thumbnails() const override { return false; }
-        int get_search_delay() const override { return 150; }
+        int get_search_delay() const override { return 500; }
         bool search_suggestion_is_search() const override { return true; }
         Page get_page_after_search() const override { return Page::VIDEO_CONTENT; }
     };

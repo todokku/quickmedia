@@ -31,4 +31,5 @@ Add scrollbar.\
 Add option to scale image to window size.\
 If you search too fast the search suggestion wont show up and when you press enter it will clear and you wont progress.
 The search should wait until there are search results before clearing the search field and selecting the search suggestion.\
-Full-screening a video doesn't work.
+Full-screening a video doesn't work.\
+Somehow deal with youtube banning ip when searching too often.
