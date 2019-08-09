@@ -1,6 +1,6 @@
 # QuickMedia
 Native clients of websites with fast access to what you want to see. [Demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
-Currently supported websites: `youtube`, `manganelo` and `pornhub`.
+Currently supported websites: `youtube`, `manganelo` and others.
 ## Controls
 Press `ESC` to go back to the previous menu.\
 Press `Ctrl + T` when hovering over a manga chapter to start tracking manga after that chapter. This only works if AutoMedia is installed and
