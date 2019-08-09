@@ -388,6 +388,7 @@ namespace QuickMedia {
             XFlush(disp);
 
             video_player_ui_window = std::make_unique<sf::RenderWindow>(ui_window);
+            video_player_ui_window->setVerticalSyncEnabled(true);
         };
 
         // This variable is needed because calling play_video is not possible in onPlaybackEndedCallback
