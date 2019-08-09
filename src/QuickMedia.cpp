@@ -290,6 +290,7 @@ namespace QuickMedia {
     }
 
     void Program::search_result_page() {
+        assert(false);
         #if 0
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
@@ -497,7 +498,7 @@ namespace QuickMedia {
             }
 
             if(video_player_ui_window) {
-                const float ui_height = window_size.y * 0.01f;
+                const float ui_height = window_size.y * 0.025f;
                 if(ui_resize) {
                     ui_resize = false;
                     video_player_ui_window->setSize(sf::Vector2u(window_size.x, ui_height));
@@ -506,7 +507,7 @@ namespace QuickMedia {
 
                 // TODO: Make window transparent, so the ui overlay for the video has transparency
                 video_player_ui_window->clear(sf::Color(33, 33, 33));
-                rect.setSize(sf::Vector2f(window_size.x * progress, window_size.y * 0.01));
+                rect.setSize(sf::Vector2f(window_size.x * progress, ui_height));
                 video_player_ui_window->draw(rect);
                 video_player_ui_window->display();
 
