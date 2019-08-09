@@ -21,7 +21,7 @@ Fix x11 freeze that sometimes happens when playing video.\
 If a search returns no results, then "No results found for ..." should be shown and navigation should go back to searching with suggestions.\
 Give user the option to start where they left off or from the start.\
 For manga, view the next chapter when reaching the end of a chapter.\
-Make network requests asynchronous to not freeze gui when navigating. Also have loading animation.\
+Search is asynchronous, but download of image also needs to be asynchronous, also add loading animation.\
 Retain search text when navigating back.\
 Disable ytdl_hook subtitles. If a video has subtitles for many languages, then it will stall video playback for several seconds
 until all subtitles have been downloaded and loaded.
@@ -31,5 +31,4 @@ Add scrollbar.\
 Add option to scale image to window size.\
 If you search too fast the search suggestion wont show up and when you press enter it will clear and you wont progress.
 The search should wait until there are search results before clearing the search field and selecting the search suggestion.\
-Currently the video player doesn't have any UI and the only input that works is `ESC` (exit video) and `space` (toggle pause).
-Also full-screening a video doesn't work.
+Full-screening a video doesn't work.

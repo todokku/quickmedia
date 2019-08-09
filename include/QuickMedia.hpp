@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Body.hpp"
 #include "SearchBar.hpp"
 #include "Page.hpp"
 #include "Storage.hpp"
@@ -9,9 +10,9 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <json/value.h>
 #include <unordered_set>
+#include <future>
 
 namespace QuickMedia {
-    class Body;
     class Plugin;
     
     class Program {
@@ -43,5 +44,6 @@ namespace QuickMedia {
         Path content_storage_file;
         Json::Value content_storage_json;
         std::unordered_set<std::string> watched_videos;
+        std::future<BodyItems> search_suggestion_future;
     };
 }

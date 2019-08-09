@@ -31,6 +31,7 @@ namespace QuickMedia {
 
     void SearchBar::update() {
         if(updated_search && time_since_search_update.getElapsedTime().asMilliseconds() >= text_autosearch_delay) {
+            time_since_search_update.restart();
             updated_search = false;
             sf::String str = text.getString();
             if(show_placeholder)

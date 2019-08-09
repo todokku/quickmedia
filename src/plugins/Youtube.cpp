@@ -12,7 +12,7 @@ namespace QuickMedia {
         return strstr(str, substr);
     }
 
-    static void iterate_suggestion_result(const Json::Value &value, std::vector<std::unique_ptr<BodyItem>> &result_items, int &iterate_count) {
+    static void iterate_suggestion_result(const Json::Value &value, BodyItems &result_items, int &iterate_count) {
         ++iterate_count;
         if(value.isArray()) {
             for(const Json::Value &child : value) {
@@ -26,7 +26,7 @@ namespace QuickMedia {
     }
 
     // TODO: Speed this up by using string.find instead of parsing html
-    SuggestionResult Youtube::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+    SuggestionResult Youtube::update_search_suggestions(const std::string &text, BodyItems &result_items) {
         // Keep this for backup. This is using search suggestion the same way youtube does it, but the results
         // are not as good as doing an actual search.
         #if 0
@@ -79,7 +79,7 @@ namespace QuickMedia {
             return SuggestionResult::NET_ERR;
 
         struct ItemData {
-            std::vector<std::unique_ptr<BodyItem>> *result_items;
+            BodyItems *result_items;
             size_t index;
         };
         ItemData item_data = { &result_items, 0 };
@@ -91,7 +91,7 @@ namespace QuickMedia {
 
         result = quickmedia_html_find_nodes_xpath(&html_search, "//h3[class=\"yt-lockup-title\"]/a",
             [](QuickMediaHtmlNode *node, void *userdata) {
-                auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
+                auto *result_items = (BodyItems*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *title = quickmedia_html_node_get_attribute_value(node, "title");
                 // Checking for watch?v helps skipping ads
@@ -127,8 +127,8 @@ namespace QuickMedia {
         return result == 0 ? SuggestionResult::OK : SuggestionResult::ERR;
     }
 
-    std::vector<std::unique_ptr<BodyItem>> Youtube::get_related_media(const std::string &url) {
-        std::vector<std::unique_ptr<BodyItem>> result_items;
+    BodyItems Youtube::get_related_media(const std::string &url) {
+        BodyItems result_items;
 
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
@@ -141,7 +141,7 @@ namespace QuickMedia {
 
         result = quickmedia_html_find_nodes_xpath(&html_search, "//ul[class=\"video-list\"]//div[class=\"content-wrapper\"]/a",
             [](QuickMediaHtmlNode *node, void *userdata) {
-                auto *result_items = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
+                auto *result_items = (BodyItems*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 // TODO: Also add title for related media
                 if(href && begins_with(href, "/watch?v=")) {

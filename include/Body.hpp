@@ -20,6 +20,8 @@ namespace QuickMedia {
         bool visible;
     };
 
+    using BodyItems = std::vector<std::unique_ptr<BodyItem>>;
+
     class Body {
     public:
         Body(sf::Font &font);
@@ -46,7 +48,7 @@ namespace QuickMedia {
         sf::Text title_text;
         sf::Text progress_text;
         int selected_item;
-        std::vector<std::unique_ptr<BodyItem>> items;
+        BodyItems items;
         std::thread thumbnail_load_thread;
         bool draw_thumbnails;
     private:

@@ -2,6 +2,7 @@
 #include "../include/Program.h"
 #include <string>
 #include <json/reader.h>
+#include <memory>
 #include <assert.h>
 
 #include <sys/socket.h>
@@ -11,18 +12,29 @@
 #include <signal.h>
 
 const int RETRY_TIME_MS = 1000;
-const int MAX_RETRIES = 5;
+const int MAX_RETRIES_CONNECT = 5;
+const int MAX_RETRIES_FIND_WINDOW = 10;
+const int READ_TIMEOUT_MS = 200;
 
 namespace QuickMedia {
-    VideoPlayer::VideoPlayer(EventCallbackFunc _event_callback) :
+    VideoPlayer::VideoPlayer(EventCallbackFunc _event_callback, VideoPlayerWindowCreateCallback _window_create_callback) :
         video_process_id(-1),
         ipc_socket(-1),
         connected_to_ipc(false),
         connect_tries(0),
+        find_window_tries(0),
         event_callback(_event_callback),
-        alive(true)
+        window_create_callback(_window_create_callback),
+        window_handle(0),
+        parent_window(0),
+        display(nullptr),
+        request_id(1),
+        expected_request_id(0),
+        request_response_data(Json::nullValue)
     {
-        
+        display = XOpenDisplay(NULL);
+        if (!display)
+            throw std::runtime_error("Failed to open display to X11 server");
     }
 
     VideoPlayer::~VideoPlayer() {
@@ -35,12 +47,13 @@ namespace QuickMedia {
         if(video_process_id != -1)
             remove(ipc_server_path);
 
-        alive = false;
-        if(event_read_thread.joinable())
-            event_read_thread.join();
+        if(display)
+            XCloseDisplay(display);
     }
 
-    VideoPlayer::Error VideoPlayer::launch_video_process(const char *path, sf::WindowHandle parent_window) {
+    VideoPlayer::Error VideoPlayer::launch_video_process(const char *path, sf::WindowHandle _parent_window) {
+        parent_window = _parent_window;
+
         if(!tmpnam(ipc_server_path)) {
             perror("Failed to generate ipc file name");
             return Error::FAIL_TO_GENERATE_IPC_FILENAME;
@@ -49,7 +62,7 @@ namespace QuickMedia {
         const std::string parent_window_str = std::to_string(parent_window);
         const char *args[] = { "mpv", /*"--keep-open=yes", "--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
             "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
-            "--cache-secs=120", "--demuxer-max-bytes=20M", "--demuxer-max-back-bytes=10M",
+            "--cache-secs=120", "--demuxer-max-bytes=40M", "--demuxer-max-back-bytes=20M",
             /*"--vo=gpu", "--hwdec=auto",*/
             "--wid", parent_window_str.c_str(), "--", path, nullptr };
         if(exec_program_async(args, &video_process_id) != 0)
@@ -71,40 +84,84 @@ namespace QuickMedia {
         return Error::OK;
     }
 
-    VideoPlayer::Error VideoPlayer::load_video(const char *path, sf::WindowHandle parent_window) {
+    VideoPlayer::Error VideoPlayer::load_video(const char *path, sf::WindowHandle _parent_window) {
+        // This check is to make sure we dont change window that the video belongs to. This is not a usecase we will have so
+        // no need to support it for not at least.
+        assert(parent_window == 0 || parent_window == _parent_window);
         if(video_process_id == -1)
-            return launch_video_process(path, parent_window);
+            return launch_video_process(path, _parent_window);
 
         std::string cmd = "loadfile ";
         cmd += path;
         return send_command(cmd.c_str(), cmd.size());
     }
 
+    static std::vector<Window> get_child_window(Display *display, Window window) {
+        std::vector<Window> result;
+        Window root_window;
+        Window parent_window;
+        Window *child_window;
+        unsigned int num_children;
+        if(XQueryTree(display, window, &root_window, &parent_window, &child_window, &num_children) != 0) {
+            for(unsigned int i = 0; i < num_children; i++)
+                result.push_back(child_window[i]);
+        }
+        return result;
+    }
+
     VideoPlayer::Error VideoPlayer::update() {
         if(ipc_socket == -1)
             return Error::INIT_FAILED;
 
-        if(connect_tries == MAX_RETRIES)
+        if(connect_tries == MAX_RETRIES_CONNECT)
             return Error::FAIL_TO_CONNECT_TIMEOUT;
 
-        if(!connected_to_ipc && ipc_connect_retry_timer.getElapsedTime().asMilliseconds() >= RETRY_TIME_MS) {
+        if(find_window_tries == MAX_RETRIES_FIND_WINDOW)
+            return Error::FAIL_TO_FIND_WINDOW;
+
+        if(!connected_to_ipc && retry_timer.getElapsedTime().asMilliseconds() >= RETRY_TIME_MS) {
+            retry_timer.restart();
             if(connect(ipc_socket, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
                 ++connect_tries;
-                if(connect_tries == MAX_RETRIES) {
-                    fprintf(stderr, "Failed to connect to mpv ipc after 5 seconds, last error: %s\n", strerror(errno));
+                if(connect_tries == MAX_RETRIES_CONNECT) {
+                    fprintf(stderr, "Failed to connect to mpv ipc after %d seconds, last error: %s\n", RETRY_TIME_MS * MAX_RETRIES_CONNECT, strerror(errno));
                     return Error::FAIL_TO_CONNECT_TIMEOUT;
                 }
             } else {
                 connected_to_ipc = true;
-                if(event_callback)
-                    event_read_thread = std::thread(&VideoPlayer::read_ipc_func, this);
             }
+        }
+
+        if(connected_to_ipc && window_handle == 0 && retry_timer.getElapsedTime().asMilliseconds() >= RETRY_TIME_MS) {
+            retry_timer.restart();
+            std::vector<Window> child_windows = get_child_window(display, parent_window);
+            size_t num_children = child_windows.size();
+            if(num_children == 0) {
+                ++find_window_tries;
+                if(find_window_tries == MAX_RETRIES_FIND_WINDOW) {
+                    fprintf(stderr, "Failed to find mpv window after %d seconds\n", RETRY_TIME_MS * MAX_RETRIES_FIND_WINDOW);
+                    return Error::FAIL_TO_FIND_WINDOW_TIMEOUT;
+                }
+            } else if(num_children == 1) {
+                window_handle = child_windows[0];
+                if(window_create_callback)
+                    window_create_callback(window_handle);
+            } else {
+                fprintf(stderr, "Expected window to have one child (the video player) but it has %zu\n", num_children);
+                return Error::UNEXPECTED_WINDOW_ERROR;
+            }
+        }
+
+        if(connected_to_ipc && event_callback) {
+            Error err = read_ipc_func();
+            if(err != Error::OK)
+                return err;
         }
 
         return Error::OK;
     }
 
-    void VideoPlayer::read_ipc_func() {
+    VideoPlayer::Error VideoPlayer::read_ipc_func() {
         assert(connected_to_ipc);
         assert(event_callback);
 
@@ -114,40 +171,89 @@ namespace QuickMedia {
         std::string json_errors;
 
         char buffer[2048];
-        while(alive) {
-            ssize_t bytes_read = read(ipc_socket, buffer, sizeof(buffer));
-            if(bytes_read == -1) {
-                int err = errno;
-                if(err == EAGAIN) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    continue;
-                }
-
+        ssize_t bytes_read = read(ipc_socket, buffer, sizeof(buffer));
+        if(bytes_read == -1) {
+            int err = errno;
+            if(err != EAGAIN) {
                 fprintf(stderr, "Failed to read from ipc socket, error: %s\n", strerror(err));
-                break;
-            } else if(bytes_read > 0) {
-                int start = 0;
-                for(int i = 0; i < bytes_read; ++i) {
-                    if(buffer[i] != '\n')
-                        continue;
+                return Error::FAIL_TO_READ;
+            }
+        } else if(bytes_read > 0) {
+            int start = 0;
+            for(int i = 0; i < bytes_read; ++i) {
+                if(buffer[i] != '\n')
+                    continue;
 
-                    if(json_reader->parse(buffer + start, buffer + i, &json_root, &json_errors)) {
-                        const Json::Value &event = json_root["event"];
-                        if(event.isString())
-                            event_callback(event.asCString());
-                    } else {
-                        fprintf(stderr, "Failed to parse json for ipc: |%.*s|, reason: %s\n", (int)bytes_read, buffer, json_errors.c_str());
+                if(json_reader->parse(buffer + start, buffer + i, &json_root, &json_errors)) {
+                    const Json::Value &event = json_root["event"];
+                    const Json::Value &request_id_json = json_root["request_id"];
+                    if(event.isString())
+                        event_callback(event.asCString());
+                    else if(expected_request_id != 0 && request_id_json.isNumeric() && request_id_json.asUInt() == expected_request_id) {
+                        request_response_data = json_root["data"];
                     }
-
-                    start = i + 1;
+                } else {
+                    fprintf(stderr, "Failed to parse json for ipc: |%.*s|, reason: %s\n", (int)bytes_read, buffer, json_errors.c_str());
                 }
+
+                start = i + 1;
             }
         }
+        return Error::OK;
     }
 
     VideoPlayer::Error VideoPlayer::toggle_pause() {
         const char cmd[] = "cycle pause\n";
         return send_command(cmd, sizeof(cmd) - 1);
+    }
+
+    VideoPlayer::Error VideoPlayer::get_progress(double *result) {
+        unsigned int cmd_request_id = request_id;
+        ++request_id;
+        // Overflow check. 0 is defined as no request, 1 is the first valid one
+        if(request_id == 0)
+            request_id = 1;
+
+        std::string cmd = "{ \"command\": [\"get_property\", \"percent-pos\"], \"request_id\": ";
+        cmd += std::to_string(cmd_request_id) + " }\n";
+        Error err = send_command(cmd.c_str(), cmd.size());
+        if(err != Error::OK)
+            return err;
+
+        sf::Clock read_timer;
+        expected_request_id = cmd_request_id;
+        do {
+            err = read_ipc_func();
+            if(err != Error::OK)
+                goto cleanup;
+
+            if(!request_response_data.isNull())
+                break;
+        } while(read_timer.getElapsedTime().asMilliseconds() < READ_TIMEOUT_MS);
+
+        if(request_response_data.isNull()) {
+            err = Error::READ_TIMEOUT;
+            goto cleanup;
+        }
+
+        if(!request_response_data.isDouble()) {
+            fprintf(stderr, "Read: expected to receive data of type double for request id %u, was type %s\n", cmd_request_id, "TODO: Fill type here");
+            err = Error::READ_INCORRECT_TYPE;
+            goto cleanup;
+        }
+
+        *result = request_response_data.asDouble() * 0.01;
+
+        cleanup:
+        expected_request_id = 0;
+        request_response_data = Json::Value(Json::nullValue);
+        return err;
+    }
+
+    VideoPlayer::Error VideoPlayer::set_progress(double progress) {
+        std::string cmd = "{ \"command\": [\"set_property\", \"percent-pos\", ";
+        cmd += std::to_string(progress * 100.0) + "] }";
+        return send_command(cmd.c_str(), cmd.size());
     }
 
     VideoPlayer::Error VideoPlayer::send_command(const char *cmd, size_t size) {

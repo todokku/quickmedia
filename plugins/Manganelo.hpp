@@ -5,8 +5,8 @@
 namespace QuickMedia {
     class Manganelo : public Plugin {
     public:
-        SearchResult search(const std::string &url, std::vector<std::unique_ptr<BodyItem>> &result_items) override;
-        SuggestionResult update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) override;
+        SearchResult search(const std::string &url, BodyItems &result_items) override;
+        SuggestionResult update_search_suggestions(const std::string &text, BodyItems &result_items) override;
         ImageResult get_image_by_index(const std::string &url, int index, std::string &image_data);
         ImageResult get_number_of_images(const std::string &url, int &num_images);
         bool search_suggestions_has_thumbnails() const override { return true; }

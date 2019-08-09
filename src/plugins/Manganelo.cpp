@@ -3,7 +3,7 @@
 #include <json/reader.h>
 
 namespace QuickMedia {
-    SearchResult Manganelo::search(const std::string &url, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+    SearchResult Manganelo::search(const std::string &url, BodyItems &result_items) {
         std::string website_data;
         if(download_to_string(url, website_data) != DownloadResult::OK)
             return SearchResult::NET_ERR;
@@ -15,7 +15,7 @@ namespace QuickMedia {
 
         result = quickmedia_html_find_nodes_xpath(&html_search, "//div[class='chapter-list']/div[class='row']//a",
             [](QuickMediaHtmlNode *node, void *userdata) {
-                auto *item_data = (std::vector<std::unique_ptr<BodyItem>>*)userdata;
+                auto *item_data = (BodyItems*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
                 const char *text = quickmedia_html_node_get_text(node);
                 if(href && text) {
@@ -50,7 +50,7 @@ namespace QuickMedia {
         return true;
     }
 
-    SuggestionResult Manganelo::update_search_suggestions(const std::string &text, std::vector<std::unique_ptr<BodyItem>> &result_items) {
+    SuggestionResult Manganelo::update_search_suggestions(const std::string &text, BodyItems &result_items) {
         std::string url = "https://manganelo.com/home_json_search";
         std::string search_term = "searchword=";
         search_term += url_param_encode(text);
