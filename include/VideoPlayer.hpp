@@ -29,6 +29,7 @@ namespace QuickMedia {
             UNEXPECTED_WINDOW_ERROR,
             FAIL_TO_READ,
             READ_TIMEOUT,
+            READ_RESPONSE_ERROR,
             READ_INCORRECT_TYPE,
             INIT_FAILED
         };
@@ -48,9 +49,18 @@ namespace QuickMedia {
 
         // Progress is in range [0..1]
         Error get_progress(double *result);
+        Error get_time_remaining(double *result);
+        Error set_paused(bool paused);
+
         // Progress is in range [0..1]
         Error set_progress(double progress);
+
+        Error is_seekable(bool *result);
+
+        bool is_connected() const { return connected_to_ipc; }
     private:
+        Error set_property(const std::string &property_name, const Json::Value &value);
+        Error get_property(const std::string &property_name, Json::Value *result, Json::ValueType result_type);
         Error send_command(const char *cmd, size_t size);
         Error launch_video_process(const char *path, sf::WindowHandle parent_window);
         VideoPlayer::Error read_ipc_func();
@@ -71,5 +81,12 @@ namespace QuickMedia {
         unsigned int request_id;
         unsigned int expected_request_id;
         Json::Value request_response_data;
+
+        enum ResponseDataStatus {
+            NONE,
+            OK,
+            ERROR
+        };
+        ResponseDataStatus response_data_status;
     };
 }

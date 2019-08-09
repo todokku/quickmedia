@@ -391,43 +391,13 @@ namespace QuickMedia {
             video_player_ui_window->setVerticalSyncEnabled(true);
         };
 
-        // This variable is needed because calling play_video is not possible in onPlaybackEndedCallback
-        bool play_next_video = false;
         bool ui_resize = true;
+        bool seekable = false;
 
         std::unique_ptr<VideoPlayer> video_player;
 
-        auto play_video = [this, &video_player, &play_next_video, &on_window_create, &video_player_ui_window, &ui_resize]() {
+        auto load_video_error_check = [this, &video_player]() {
             watched_videos.insert(content_url);
-            video_player = std::make_unique<VideoPlayer>([this, &play_next_video, &video_player_ui_window, &ui_resize](const char *event_name) {
-                if(strcmp(event_name, "end-file") == 0) {
-                    video_player_ui_window = nullptr;
-                    ui_resize = true;
-
-                    std::string new_video_url;
-                    BodyItems related_media = current_plugin->get_related_media(content_url);
-                    // Find video that hasn't been played before in this video session
-                    for(auto it = related_media.begin(), end = related_media.end(); it != end; ++it) {
-                        if(watched_videos.find((*it)->url) == watched_videos.end()) {
-                            new_video_url = (*it)->url;
-                            break;
-                        }
-                    }
-
-                    // If there are no videos to play, then dont play any...
-                    if(new_video_url.empty()) {
-                        show_notification("Video player", "No more related videos to play");
-                        current_page = Page::SEARCH_SUGGESTION;
-                        return;
-                    }
-
-                    content_url = std::move(new_video_url);
-                    play_next_video = true;
-                    // TODO: This doesn't seem to work correctly right now, it causes video to become black when changing video (context reset bug).
-                    //video_player->load_file(video_url);
-                }
-            }, on_window_create);
-
             VideoPlayer::Error err = video_player->load_video(content_url.c_str(), window.getSystemHandle());
             if(err != VideoPlayer::Error::OK) {
                 std::string err_msg = "Failed to play url: ";
@@ -436,7 +406,41 @@ namespace QuickMedia {
                 current_page = Page::SEARCH_SUGGESTION;
             }
         };
-        play_video();
+        
+        video_player = std::make_unique<VideoPlayer>([this, &video_player, &seekable, &load_video_error_check](const char *event_name) {
+            bool end_of_file = false;
+            if(strcmp(event_name, "pause") == 0) {
+                double time_remaining = 0.0;
+                if(video_player->get_time_remaining(&time_remaining) == VideoPlayer::Error::OK && time_remaining < 0.1)
+                    end_of_file = true;
+            } else if(strcmp(event_name, "playback-restart") == 0) {
+                video_player->set_paused(false);
+                video_player->is_seekable(&seekable);
+            }
+
+            if(end_of_file) {
+                std::string new_video_url;
+                BodyItems related_media = current_plugin->get_related_media(content_url);
+                // Find video that hasn't been played before in this video session
+                for(auto it = related_media.begin(), end = related_media.end(); it != end; ++it) {
+                    if(watched_videos.find((*it)->url) == watched_videos.end()) {
+                        new_video_url = (*it)->url;
+                        break;
+                    }
+                }
+
+                // If there are no videos to play, then dont play any...
+                if(new_video_url.empty()) {
+                    show_notification("Video player", "No more related videos to play");
+                    current_page = Page::SEARCH_SUGGESTION;
+                    return;
+                }
+
+                content_url = std::move(new_video_url);
+                load_video_error_check();
+            }
+        }, on_window_create);
+        load_video_error_check();
 
         auto on_doubleclick = []() {
             // TODO: Toggle fullscreen of video here
@@ -444,7 +448,7 @@ namespace QuickMedia {
 
         sf::Clock ui_hide_timer;
         bool ui_visible = true;
-        const int UI_HIDE_TIMEOUT = 3000;
+        const int UI_HIDE_TIMEOUT = 4500;
 
         sf::Clock time_since_last_left_click;
         int left_click_counter;
@@ -461,11 +465,6 @@ namespace QuickMedia {
         window.display();
 
         while (current_page == Page::VIDEO_CONTENT) {
-            if(play_next_video) {
-                play_next_video = false;
-                play_video();
-            }
-
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
                 if(event.type == sf::Event::Resized) {
@@ -517,7 +516,7 @@ namespace QuickMedia {
             //window.clear();
             //window.display();
 
-            if(get_progress_timer.getElapsedTime().asMilliseconds() >= 500) {
+            if(video_player->is_connected() && get_progress_timer.getElapsedTime().asMilliseconds() >= 500) {
                 get_progress_timer.restart();
                 video_player->get_progress(&progress);
             }
@@ -549,7 +548,10 @@ namespace QuickMedia {
                 if(sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
                     auto mouse_pos = sf::Mouse::getPosition(window);
                     if(mouse_pos.y >= window_size.y - ui_height) {
-                        video_player->set_progress((double)mouse_pos.x / (double)window_size.x);
+                        if(seekable)
+                            video_player->set_progress((double)mouse_pos.x / (double)window_size.x);
+                        else
+                            fprintf(stderr, "Video is not seekable!\n"); // TODO: Show this to the user
                     }
                 }
             } else {

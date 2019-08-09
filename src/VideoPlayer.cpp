@@ -2,6 +2,7 @@
 #include "../include/Program.h"
 #include <string>
 #include <json/reader.h>
+#include <json/writer.h>
 #include <memory>
 #include <assert.h>
 
@@ -30,7 +31,8 @@ namespace QuickMedia {
         display(nullptr),
         request_id(1),
         expected_request_id(0),
-        request_response_data(Json::nullValue)
+        request_response_data(Json::nullValue),
+        response_data_status(ResponseDataStatus::NONE)
     {
         display = XOpenDisplay(NULL);
         if (!display)
@@ -62,9 +64,11 @@ namespace QuickMedia {
         }
 
         const std::string parent_window_str = std::to_string(parent_window);
-        const char *args[] = { "mpv", /*"--keep-open=yes", "--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
+        const char *args[] = { "mpv", "--keep-open=yes", /*"--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
             "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
             "--cache-secs=120", "--demuxer-max-bytes=40M", "--demuxer-max-back-bytes=20M",
+            "--no-input-terminal",
+            "--no-osc",
             /*"--vo=gpu", "--hwdec=auto",*/
             "--wid", parent_window_str.c_str(), "--", path, nullptr };
         if(exec_program_async(args, &video_process_id) != 0)
@@ -93,9 +97,17 @@ namespace QuickMedia {
         if(video_process_id == -1)
             return launch_video_process(path, _parent_window);
 
-        std::string cmd = "loadfile ";
-        cmd += path;
-        return send_command(cmd.c_str(), cmd.size());
+        Json::Value command_data(Json::arrayValue);
+        command_data.append("loadfile");
+        command_data.append(path);
+        Json::Value command(Json::objectValue);
+        command["command"] = command_data;
+
+        Json::StreamWriterBuilder builder;
+        builder["commentStyle"] = "None";
+        builder["indentation"] = "";
+        const std::string cmd_str = Json::writeString(builder, command) + "\n";
+        return send_command(cmd_str.c_str(), cmd_str.size());
     }
 
     static std::vector<Window> get_child_window(Display *display, Window window) {
@@ -187,9 +199,16 @@ namespace QuickMedia {
                 if(json_reader->parse(buffer + start, buffer + i, &json_root, &json_errors)) {
                     const Json::Value &event = json_root["event"];
                     const Json::Value &request_id_json = json_root["request_id"];
-                    if(event.isString() && event_callback)
-                        event_callback(event.asCString());
-                    else if(expected_request_id != 0 && request_id_json.isNumeric() && request_id_json.asUInt() == expected_request_id) {
+                    if(event.isString()) {
+                        if(event_callback)
+                            event_callback(event.asCString());
+                    }
+
+                    if(expected_request_id != 0 && request_id_json.isNumeric() && request_id_json.asUInt() == expected_request_id) {
+                        if(json_root["error"].isNull())
+                            response_data_status = ResponseDataStatus::ERROR;
+                        else
+                            response_data_status = ResponseDataStatus::OK;
                         request_response_data = json_root["data"];
                     }
                 } else {
@@ -208,15 +227,60 @@ namespace QuickMedia {
     }
 
     VideoPlayer::Error VideoPlayer::get_progress(double *result) {
+        Json::Value percent_pos_json;
+        Error err = get_property("percent-pos", &percent_pos_json, Json::realValue);
+        if(err != Error::OK)
+            return err;
+
+        *result = percent_pos_json.asDouble() * 0.01;
+        return err;
+    }
+
+    VideoPlayer::Error VideoPlayer::get_time_remaining(double *result) {
+        Json::Value time_remaining_json;
+        Error err = get_property("time-remaining", &time_remaining_json, Json::realValue);
+        if(err != Error::OK)
+            return err;
+
+        *result = time_remaining_json.asDouble();
+        return err;
+    }
+
+    VideoPlayer::Error VideoPlayer::set_property(const std::string &property_name, const Json::Value &value) {
+        Json::Value command_data(Json::arrayValue);
+        command_data.append("set_property");
+        command_data.append(property_name);
+        command_data.append(value);
+        Json::Value command(Json::objectValue);
+        command["command"] = command_data;
+
+        Json::StreamWriterBuilder builder;
+        builder["commentStyle"] = "None";
+        builder["indentation"] = "";
+        const std::string cmd_str = Json::writeString(builder, command) + "\n";
+        return send_command(cmd_str.c_str(), cmd_str.size());
+    }
+
+    VideoPlayer::Error VideoPlayer::get_property(const std::string &property_name, Json::Value *result, Json::ValueType result_type) {
         unsigned int cmd_request_id = request_id;
         ++request_id;
         // Overflow check. 0 is defined as no request, 1 is the first valid one
         if(request_id == 0)
             request_id = 1;
 
-        std::string cmd = "{ \"command\": [\"get_property\", \"percent-pos\"], \"request_id\": ";
-        cmd += std::to_string(cmd_request_id) + " }\n";
-        Error err = send_command(cmd.c_str(), cmd.size());
+        Json::Value command_data(Json::arrayValue);
+        command_data.append("get_property");
+        command_data.append(property_name);
+        Json::Value command(Json::objectValue);
+        command["command"] = command_data;
+        command["request_id"] = cmd_request_id;
+
+        Json::StreamWriterBuilder builder;
+        builder["commentStyle"] = "None";
+        builder["indentation"] = "";
+        const std::string cmd_str = Json::writeString(builder, command) + "\n";
+
+        Error err = send_command(cmd_str.c_str(), cmd_str.size());
         if(err != Error::OK)
             return err;
 
@@ -227,33 +291,48 @@ namespace QuickMedia {
             if(err != Error::OK)
                 goto cleanup;
 
-            if(!request_response_data.isNull())
+            if(response_data_status != ResponseDataStatus::NONE)
                 break;
         } while(read_timer.getElapsedTime().asMilliseconds() < READ_TIMEOUT_MS);
 
-        if(request_response_data.isNull()) {
+        if(response_data_status == ResponseDataStatus::OK) {
+            if(request_response_data.type() == result_type)
+                *result = request_response_data;
+            else
+                err = Error::READ_INCORRECT_TYPE;
+        } else if(response_data_status == ResponseDataStatus::ERROR) {
+            err = Error::READ_RESPONSE_ERROR;
+            goto cleanup;
+        } else {
             err = Error::READ_TIMEOUT;
             goto cleanup;
         }
 
-        if(!request_response_data.isDouble()) {
-            fprintf(stderr, "Read: expected to receive data of type double for request id %u, was type %s\n", cmd_request_id, "TODO: Fill type here");
-            err = Error::READ_INCORRECT_TYPE;
-            goto cleanup;
-        }
-
-        *result = request_response_data.asDouble() * 0.01;
-
         cleanup:
         expected_request_id = 0;
+        response_data_status = ResponseDataStatus::NONE;
         request_response_data = Json::Value(Json::nullValue);
         return err;
+    }
+
+    VideoPlayer::Error VideoPlayer::set_paused(bool paused) {
+        return set_property("pause", paused);
     }
 
     VideoPlayer::Error VideoPlayer::set_progress(double progress) {
         std::string cmd = "{ \"command\": [\"set_property\", \"percent-pos\", ";
         cmd += std::to_string(progress * 100.0) + "] }";
         return send_command(cmd.c_str(), cmd.size());
+    }
+
+    VideoPlayer::Error VideoPlayer::is_seekable(bool *result) {
+        Json::Value seekable_json;
+        Error err = get_property("seekable", &seekable_json, Json::booleanValue);
+        if(err != Error::OK)
+            return err;
+
+        *result = seekable_json.asBool();
+        return err;
     }
 
     VideoPlayer::Error VideoPlayer::send_command(const char *cmd, size_t size) {
