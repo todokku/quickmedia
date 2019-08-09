@@ -165,8 +165,6 @@ namespace QuickMedia {
 
     VideoPlayer::Error VideoPlayer::read_ipc_func() {
         assert(connected_to_ipc);
-        assert(event_callback);
-
         Json::Value json_root;
         Json::CharReaderBuilder json_builder;
         std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
@@ -189,7 +187,7 @@ namespace QuickMedia {
                 if(json_reader->parse(buffer + start, buffer + i, &json_root, &json_errors)) {
                     const Json::Value &event = json_root["event"];
                     const Json::Value &request_id_json = json_root["request_id"];
-                    if(event.isString())
+                    if(event.isString() && event_callback)
                         event_callback(event.asCString());
                     else if(expected_request_id != 0 && request_id_json.isNumeric() && request_id_json.asUInt() == expected_request_id) {
                         request_response_data = json_root["data"];

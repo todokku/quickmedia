@@ -397,7 +397,6 @@ namespace QuickMedia {
         std::unique_ptr<VideoPlayer> video_player;
 
         auto play_video = [this, &video_player, &play_next_video, &on_window_create, &video_player_ui_window, &ui_resize]() {
-            printf("Playing video: %s\n", content_url.c_str());
             watched_videos.insert(content_url);
             video_player = std::make_unique<VideoPlayer>([this, &play_next_video, &video_player_ui_window, &ui_resize](const char *event_name) {
                 if(strcmp(event_name, "end-file") == 0) {

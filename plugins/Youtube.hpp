@@ -12,5 +12,8 @@ namespace QuickMedia {
         int get_search_delay() const override { return 500; }
         bool search_suggestion_is_search() const override { return true; }
         Page get_page_after_search() const override { return Page::VIDEO_CONTENT; }
+    private:
+        std::string last_related_media_playlist_id;
+        BodyItems last_playlist_data;
     };
 }
