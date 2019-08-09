@@ -87,6 +87,19 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
     }
 }
 
+int wait_program(pid_t process_id) {
+    int status;
+    if(waitpid(process_id, &status, WUNTRACED) == -1) {
+        perror("waitpid failed");
+        return -errno;
+    }
+
+    if(!WIFEXITED(status))
+        return -4;
+
+    return WEXITSTATUS(status);
+}
+
 int exec_program_async(const char **args, pid_t *result_process_id) {
     /* 1 arguments */
     if(args[0] == NULL)

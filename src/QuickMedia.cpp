@@ -373,6 +373,19 @@ namespace QuickMedia {
             throw std::runtime_error("Failed to open display to X11 server");
         XDisplayScope display_scope(disp);
 
+        int screen = DefaultScreen(disp);
+        Window video_player_window_id = XCreateWindow(disp, RootWindow(disp, screen),
+                        0, 0, window.getSize().x, window.getSize().y, 0,
+                        DefaultDepth(disp, screen),
+                        InputOutput,
+                        DefaultVisual(disp, screen),
+                        0, NULL);
+
+        XReparentWindow(disp, video_player_window_id, window.getSystemHandle(), 0, 0);
+        XMapWindow(disp, video_player_window_id);
+        XFlush(disp);
+        std::unique_ptr<sf::RenderWindow> video_player_window = std::make_unique<sf::RenderWindow>(video_player_window_id);
+
         std::unique_ptr<sf::RenderWindow> video_player_ui_window;
         auto on_window_create = [disp, &video_player_ui_window](sf::WindowHandle video_player_window) {
             int screen = DefaultScreen(disp);
@@ -396,7 +409,7 @@ namespace QuickMedia {
 
         std::unique_ptr<VideoPlayer> video_player;
 
-        auto play_video = [this, &video_player, &play_next_video, &on_window_create, &video_player_ui_window, &ui_resize]() {
+        auto play_video = [this, &video_player, &play_next_video, &on_window_create, &video_player_ui_window, &ui_resize, &video_player_window]() {
             printf("Playing video: %s\n", content_url.c_str());
             watched_videos.insert(content_url);
             video_player = std::make_unique<VideoPlayer>([this, &play_next_video, &video_player_ui_window, &ui_resize](const char *event_name) {
@@ -428,7 +441,7 @@ namespace QuickMedia {
                 }
             }, on_window_create);
 
-            VideoPlayer::Error err = video_player->load_video(content_url.c_str(), window.getSystemHandle());
+            VideoPlayer::Error err = video_player->load_video(content_url.c_str(), video_player_window->getSystemHandle());
             if(err != VideoPlayer::Error::OK) {
                 std::string err_msg = "Failed to play url: ";
                 err_msg += content_url;
@@ -455,20 +468,32 @@ namespace QuickMedia {
         sf::Clock get_progress_timer;
         double progress = 0.0;
 
+        // We want a black screen before video starts playing, instead of being frozen at previous UI
+        video_player_window->clear();
+        video_player_window->display();
+
         while (current_page == Page::VIDEO_CONTENT) {
             if(play_next_video) {
                 play_next_video = false;
                 play_video();
             }
 
-            while (window.pollEvent(event)) {
-                base_event_handler(event, Page::SEARCH_SUGGESTION);
-                if(event.type == sf::Event::Resized) {
+            while (video_player_window->pollEvent(event)) {
+                if (event.type == sf::Event::Closed) {
+                    current_page = Page::EXIT;
+                } else if(event.type == sf::Event::Resized) {
+                    window_size.x = event.size.width;
+                    window_size.y = event.size.height;
+                    video_player_window->setSize(sf::Vector2u(window_size.x, window_size.y));
                     if(video_player_ui_window)
                         ui_resize = true;
-                } else if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space) {
-                    if(video_player->toggle_pause() != VideoPlayer::Error::OK) {
-                        fprintf(stderr, "Failed to toggle pause!\n");
+                } else if(event.type == sf::Event::KeyPressed) {
+                    if(event.key.code == sf::Keyboard::Escape)
+                        current_page = Page::SEARCH_SUGGESTION;
+                    else if(event.key.code == sf::Keyboard::Space) {
+                        if(video_player->toggle_pause() != VideoPlayer::Error::OK) {
+                            fprintf(stderr, "Failed to toggle pause!\n");
+                        }
                     }
                 } else if(event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                     if(time_since_last_left_click.restart().asMilliseconds() <= DOUBLE_CLICK_TIME) {
@@ -509,8 +534,8 @@ namespace QuickMedia {
             }
 
             // TODO: Show loading video animation
-            //window.clear();
-            //window.display();
+            //video_player_window->clear();
+            //video_player_window->display();
 
             if(get_progress_timer.getElapsedTime().asMilliseconds() >= 500) {
                 get_progress_timer.restart();
@@ -547,6 +572,9 @@ namespace QuickMedia {
                 }
             }
         }
+
+        video_player_ui_window.reset();
+        video_player_window.reset();
     }
 
     enum class TrackMediaType {

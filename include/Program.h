@@ -22,6 +22,9 @@ typedef int (*ProgramOutputCallback)(char *data, int size, void *userdata);
 */
 int exec_program(const char **args, ProgramOutputCallback output_callback, void *userdata);
 
+// Return the exit status, or a negative value if waiting failed
+int wait_program(pid_t process_id);
+
 /*
     @args need to have at least 2 arguments. The first which is the program name
     and the last which is NULL, which indicates end of args

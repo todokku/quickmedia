@@ -38,8 +38,10 @@ namespace QuickMedia {
     }
 
     VideoPlayer::~VideoPlayer() {
-        if(video_process_id != -1)
+        if(video_process_id != -1) {
             kill(video_process_id, SIGTERM);
+            wait_program(video_process_id);
+        }
 
         if(ipc_socket != -1)
             close(ipc_socket);
