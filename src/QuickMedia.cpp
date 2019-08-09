@@ -523,8 +523,10 @@ namespace QuickMedia {
             }
 
             if(video_player_ui_window) {
-                if(!ui_visible)
+                if(!ui_visible) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     continue;
+                }
 
                 if(ui_hide_timer.getElapsedTime().asMilliseconds() > UI_HIDE_TIMEOUT) {
                     ui_visible = false;
@@ -550,6 +552,8 @@ namespace QuickMedia {
                         video_player->set_progress((double)mouse_pos.x / (double)window_size.x);
                     }
                 }
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
         }
 
