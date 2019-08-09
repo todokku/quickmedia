@@ -441,6 +441,10 @@ namespace QuickMedia {
             // TODO: Toggle fullscreen of video here
         };
 
+        sf::Clock ui_hide_timer;
+        bool ui_visible = true;
+        const int UI_HIDE_TIMEOUT = 3000;
+
         sf::Clock time_since_last_left_click;
         int left_click_counter;
         sf::Event event;
@@ -473,6 +477,12 @@ namespace QuickMedia {
                         }
                     } else {
                         left_click_counter = 1;
+                    }
+                } else if(event.type == sf::Event::MouseMoved) {
+                    ui_hide_timer.restart();
+                    if(!ui_visible) {
+                        ui_visible = true;
+                        video_player_ui_window->setVisible(true);
                     }
                 }
             }
@@ -507,6 +517,14 @@ namespace QuickMedia {
             }
 
             if(video_player_ui_window) {
+                if(!ui_visible)
+                    continue;
+
+                if(ui_hide_timer.getElapsedTime().asMilliseconds() > UI_HIDE_TIMEOUT) {
+                    ui_visible = false;
+                    video_player_ui_window->setVisible(false);
+                }
+
                 const float ui_height = window_size.y * 0.025f;
                 if(ui_resize) {
                     ui_resize = false;
