@@ -1,6 +1,7 @@
 #include "../include/QuickMedia.hpp"
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
+#include "../plugins/Pornhub.hpp"
 #include "../include/Scale.hpp"
 #include "../include/Program.h"
 #include "../include/VideoPlayer.hpp"
@@ -72,7 +73,7 @@ namespace QuickMedia {
     static void usage() {
         fprintf(stderr, "usage: QuickMedia <plugin>\n");
         fprintf(stderr, "OPTIONS:\n");
-        fprintf(stderr, "plugin    The plugin to use. Should be either manganelo or youtube\n");
+        fprintf(stderr, "plugin    The plugin to use. Should be either manganelo, youtube or pornhub\n");
     }
 
     int Program::run(int argc, char **argv) {
@@ -85,6 +86,8 @@ namespace QuickMedia {
             current_plugin = new Manganelo();
         else if(strcmp(argv[1], "youtube") == 0)
             current_plugin = new Youtube();
+        else if(strcmp(argv[1], "pornhub") == 0)
+            current_plugin = new Pornhub();
         else {
             usage();
             return -1;
