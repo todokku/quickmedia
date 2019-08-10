@@ -69,6 +69,7 @@ namespace QuickMedia {
             "--cache-secs=120", "--demuxer-max-bytes=40M", "--demuxer-max-back-bytes=20M",
             "--no-input-terminal",
             "--no-osc",
+            "--profile=gpu-hq",
             /*"--vo=gpu", "--hwdec=auto",*/
             "--wid", parent_window_str.c_str(), "--", path, nullptr };
         if(exec_program_async(args, &video_process_id) != 0)
