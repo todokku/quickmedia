@@ -221,6 +221,41 @@ namespace QuickMedia {
         return file_overwrite(path, Json::writeString(json_builder, json)) == 0;
     }
 
+    static std::string manga_extract_id_from_url(const std::string &url) {
+        bool manganelo_website = false;
+        if(url.find("mangakakalot") != std::string::npos)
+            manganelo_website = true;
+        else if(url.find("manganelo") != std::string::npos)
+            manganelo_website = true;
+
+        if(manganelo_website) {
+            size_t index = url.find("manga/");
+            if(index == std::string::npos) {
+                std::string err_msg = "Url ";
+                err_msg += url;
+                err_msg += " doesn't contain manga id";
+                show_notification("Manga", err_msg, Urgency::CRITICAL);
+                abort();
+            }
+
+            std::string manga_id = url.substr(index + 6);
+            if(manga_id.size() <= 2) {
+                std::string err_msg = "Url ";
+                err_msg += url;
+                err_msg += " doesn't contain manga id";
+                show_notification("Manga", err_msg, Urgency::CRITICAL);
+                abort();
+            }
+            return manga_id;
+        } else {
+            std::string err_msg = "Unexpected url ";
+            err_msg += url;
+            err_msg += " is not manganelo or mangakakalot";
+            show_notification("Manga", err_msg, Urgency::CRITICAL);
+            abort();
+        }
+    }
+
     void Program::search_suggestion_page() {
         std::string update_search_text;
         bool search_running = false;
@@ -234,13 +269,19 @@ namespace QuickMedia {
                 return false;
 
             if(next_page == Page::EPISODE_LIST) {
+                if(content_url.empty()) {
+                    show_notification("Manga", "Url is missing for manga!", Urgency::CRITICAL);
+                    return false;
+                }
+                
                 Path content_storage_dir = get_storage_dir().join("manga");
                 if(create_directory_recursive(content_storage_dir) != 0) {
                     show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
                     return false;
                 }
 
-                content_storage_file = content_storage_dir.join(base64_encode(content_title));
+                std::string manga_id = manga_extract_id_from_url(content_url);
+                content_storage_file = content_storage_dir.join(base64_encode(manga_id));
                 content_storage_json.clear();
                 content_storage_json["name"] = content_title;
                 FileType file_type = get_file_type(content_storage_file);
@@ -693,6 +734,7 @@ namespace QuickMedia {
         if(image_result == ImageResult::OK) {
             if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
                 image_texture.setSmooth(true);
+                image_texture.generateMipmap();
                 image.setTexture(image_texture, true);
             } else {
                 error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index + 1));
@@ -718,6 +760,8 @@ namespace QuickMedia {
                 const Json::Value &current = json_chapter["current"];
                 if(current.isNumeric())
                     latest_read = std::max(latest_read, current.asInt());
+            } else {
+                json_chapter = Json::Value(Json::objectValue);
             }
         } else {
             json_chapters = Json::Value(Json::objectValue);
