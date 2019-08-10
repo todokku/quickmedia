@@ -33,6 +33,7 @@ namespace QuickMedia {
         sf::Font font;
         Body *body;
         Plugin *current_plugin;
+        sf::Texture plugin_logo;
         std::unique_ptr<SearchBar> search_bar;
         Page current_page;
         // TODO: Combine these

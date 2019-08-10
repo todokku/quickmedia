@@ -20,7 +20,7 @@
 #include <signal.h>
 
 const sf::Color front_color(43, 45, 47);
-const sf::Color back_color(33, 35, 37);
+const sf::Color back_color(30, 32, 34);
 const int DOUBLE_CLICK_TIME = 500;
 
 // Prevent writing to broken pipe from exiting the program
@@ -43,7 +43,6 @@ namespace QuickMedia {
             abort();
         }
         body = new Body(font);
-        search_bar = std::make_unique<SearchBar>(font);
 
         struct sigaction action;
         action.sa_handler = sigpipe_handler;
@@ -82,17 +81,31 @@ namespace QuickMedia {
             return -1;
         }
 
-        if(strcmp(argv[1], "manganelo") == 0)
+        std::string plugin_logo_path;
+        if(strcmp(argv[1], "manganelo") == 0) {
             current_plugin = new Manganelo();
-        else if(strcmp(argv[1], "youtube") == 0)
+            plugin_logo_path = "../../../images/manganelo_logo.png";
+        } else if(strcmp(argv[1], "youtube") == 0) {
             current_plugin = new Youtube();
-        else if(strcmp(argv[1], "pornhub") == 0)
+            plugin_logo_path = "../../../images/yt_logo_rgb_dark_small.png";
+        } else if(strcmp(argv[1], "pornhub") == 0) {
             current_plugin = new Pornhub();
-        else {
+            plugin_logo_path = "../../../images/pornhub_logo.png";
+        } else {
             usage();
             return -1;
         }
 
+        if(!plugin_logo_path.empty()) {
+            if(!plugin_logo.loadFromFile(plugin_logo_path)) {
+                fprintf(stderr, "Failed to load plugin logo, path: %s\n", plugin_logo_path.c_str());
+                return -2;
+            }
+            plugin_logo.generateMipmap();
+            plugin_logo.setSmooth(true);
+        }
+
+        search_bar = std::make_unique<SearchBar>(font, plugin_logo);
         search_bar->text_autosearch_delay = current_plugin->get_search_delay();
 
         while(window.isOpen()) {

@@ -129,10 +129,10 @@ namespace QuickMedia {
         //item_background.setOutlineThickness(1.0f);
         //item_background.setOutlineColor(sf::Color(13, 15, 17));
         sf::RectangleShape item_background_shadow;
-        item_background_shadow.setFillColor(sf::Color(13, 15, 17));
+        item_background_shadow.setFillColor(sf::Color(23, 25, 27));
 
         sf::RectangleShape selected_border;
-        selected_border.setFillColor(sf::Color::Red);
+        selected_border.setFillColor(sf::Color(0, 85, 119));
         const float selected_border_width = 5.0f;
 
         int num_items = items.size();
@@ -189,7 +189,7 @@ namespace QuickMedia {
                 selected_border.setSize(sf::Vector2f(selected_border_width, row_height));
                 window.draw(selected_border);
                 item_pos.x += selected_border_width;
-                item_background.setFillColor(sf::Color(63, 65, 67));
+                item_background.setFillColor(sf::Color(0, 85, 119));
             } else {
                 item_background.setFillColor(front_color);
             }
