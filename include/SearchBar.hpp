@@ -28,6 +28,7 @@ namespace QuickMedia {
     private:
         sf::Text text;
         sf::RectangleShape background;
+        sf::RectangleShape background_shadow;
         bool show_placeholder;
         bool updated_search;
         sf::Clock time_since_search_update;

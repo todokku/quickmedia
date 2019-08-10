@@ -20,11 +20,14 @@ namespace QuickMedia {
         text.setFillColor(text_placeholder_color);
         background.setFillColor(front_color);
         background.setPosition(padding_horizontal, padding_vertical);
-        //background.setOutlineThickness(1.0f);
-        //background.setOutlineColor(sf::Color(0, 85, 119));
+        background_shadow.setFillColor(sf::Color(13, 15, 17));
+        background_shadow.setPosition(background.getPosition() + sf::Vector2f(5.0f, 5.0f));
+        //background.setOutlineThickness(2.0f);
+        //background.setOutlineColor(sf::Color(13, 15, 17));
     }
 
     void SearchBar::draw(sf::RenderWindow &window) {
+        window.draw(background_shadow);
         window.draw(background);
         window.draw(text);
     }
@@ -45,6 +48,7 @@ namespace QuickMedia {
         float font_height = text.getCharacterSize() + 8.0f;
         float rect_height = std::floor(font_height + background_margin_vertical * 2.0f);
         background.setSize(sf::Vector2f(std::floor(window_size.x - padding_horizontal * 2.0f), rect_height));
+        background_shadow.setSize(background.getSize());
         text.setPosition(std::floor(padding_horizontal + background_margin_horizontal), std::floor(padding_vertical + background_margin_vertical));
     }
 

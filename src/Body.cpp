@@ -126,8 +126,10 @@ namespace QuickMedia {
 
         sf::RectangleShape item_background;
         item_background.setFillColor(front_color);
-        item_background.setOutlineThickness(1.0f);
-        item_background.setOutlineColor(sf::Color(63, 65, 67));
+        //item_background.setOutlineThickness(1.0f);
+        //item_background.setOutlineColor(sf::Color(13, 15, 17));
+        sf::RectangleShape item_background_shadow;
+        item_background_shadow.setFillColor(sf::Color(13, 15, 17));
 
         sf::RectangleShape selected_border;
         selected_border.setFillColor(sf::Color::Red);
@@ -143,7 +145,7 @@ namespace QuickMedia {
         float row_height = font_height;
         if(draw_thumbnails)
             row_height = image_height;
-        const float total_row_height = row_height + 10.0f;
+        const float total_row_height = row_height + 15.0f;
         const int max_visible_rows = size.y / total_row_height - 1;
 
         // Find the starting row that can be drawn to make selected row visible as well
@@ -187,13 +189,16 @@ namespace QuickMedia {
                 selected_border.setSize(sf::Vector2f(selected_border_width, row_height));
                 window.draw(selected_border);
                 item_pos.x += selected_border_width;
-                item_background.setFillColor(front_color);
+                item_background.setFillColor(sf::Color(63, 65, 67));
             } else {
-                item_background.setFillColor(sf::Color(38, 40, 42));
+                item_background.setFillColor(front_color);
             }
 
             item_pos.x = std::floor(item_pos.x);
             item_pos.y = std::floor(item_pos.y);
+            item_background_shadow.setPosition(item_pos + sf::Vector2f(5.0f, 5.0f));
+            item_background_shadow.setSize(sf::Vector2f(size.x, row_height));
+            window.draw(item_background_shadow);
             item_background.setPosition(item_pos);
             item_background.setSize(sf::Vector2f(size.x, row_height));
             window.draw(item_background);
