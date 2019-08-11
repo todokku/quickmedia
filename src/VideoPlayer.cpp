@@ -139,7 +139,7 @@ namespace QuickMedia {
             if(connect(ipc_socket, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
                 ++connect_tries;
                 if(connect_tries == MAX_RETRIES_CONNECT) {
-                    fprintf(stderr, "Failed to connect to mpv ipc after %d seconds, last error: %s\n", RETRY_TIME_MS * MAX_RETRIES_CONNECT, strerror(errno));
+                    fprintf(stderr, "Failed to connect to mpv ipc after %d seconds, last error: %s\n", (RETRY_TIME_MS * MAX_RETRIES_CONNECT)/1000, strerror(errno));
                     return Error::FAIL_TO_CONNECT_TIMEOUT;
                 }
             } else {
@@ -154,7 +154,7 @@ namespace QuickMedia {
             if(num_children == 0) {
                 ++find_window_tries;
                 if(find_window_tries == MAX_RETRIES_FIND_WINDOW) {
-                    fprintf(stderr, "Failed to find mpv window after %d seconds\n", RETRY_TIME_MS * MAX_RETRIES_FIND_WINDOW);
+                    fprintf(stderr, "Failed to find mpv window after %d seconds\n", (RETRY_TIME_MS * MAX_RETRIES_FIND_WINDOW)/1000);
                     return Error::FAIL_TO_FIND_WINDOW_TIMEOUT;
                 }
             } else if(num_children == 1) {

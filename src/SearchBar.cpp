@@ -127,6 +127,6 @@ namespace QuickMedia {
     }
 
     float SearchBar::getBottom() const {
-        return background.getPosition().y + background.getSize().y;
+        return shade.getSize().y + background_shadow.getSize().y;
     }
 }

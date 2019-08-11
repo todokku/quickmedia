@@ -465,7 +465,7 @@ namespace QuickMedia {
             bool end_of_file = false;
             if(strcmp(event_name, "pause") == 0) {
                 double time_remaining = 0.0;
-                if(video_player->get_time_remaining(&time_remaining) == VideoPlayer::Error::OK && time_remaining < 0.1)
+                if(video_player->get_time_remaining(&time_remaining) == VideoPlayer::Error::OK && time_remaining <= 1.0)
                     end_of_file = true;
             } else if(strcmp(event_name, "playback-restart") == 0) {
                 video_player->set_paused(false);
@@ -682,9 +682,9 @@ namespace QuickMedia {
                     BodyItem *selected_item = body->get_selected();
                     if(selected_item) {
                         if(track_media(TrackMediaType::HTML, content_title, selected_item->title, content_url) == 0) {
-                            show_notification("Media tracker", "You are now tracking " + selected_item->title);
+                            show_notification("Media tracker", "You are now tracking \"" + content_title + "\" after \"" + selected_item->title + "\"");
                         } else {
-                            show_notification("Media tracker", "Failed to track media. Url: " + selected_item->url + ", title: " + selected_item->title, Urgency::CRITICAL);
+                            show_notification("Media tracker", "Failed to track media \"" + content_title + "\", chapter: \"" + selected_item->title + "\"", Urgency::CRITICAL);
                         }
                     }
                 }
