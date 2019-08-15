@@ -17,6 +17,7 @@
 #include <cmath>
 #include <string.h>
 #include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include <signal.h>
 
 const sf::Color front_color(43, 45, 47);
@@ -26,6 +27,14 @@ const int DOUBLE_CLICK_TIME = 500;
 // Prevent writing to broken pipe from exiting the program
 static void sigpipe_handler(int unused) {
 
+}
+
+static int x_error_handler(Display *display, XErrorEvent *event) {
+    return 0;
+}
+
+static int x_io_error_handler(Display *display) {
+    return 0;
 }
 
 namespace QuickMedia {
@@ -49,6 +58,9 @@ namespace QuickMedia {
         sigemptyset(&action.sa_mask);
         action.sa_flags = 0;
         sigaction(SIGPIPE, &action, NULL);
+
+        XSetErrorHandler(x_error_handler);
+        XSetIOErrorHandler(x_io_error_handler);
     }
 
     Program::~Program() {
@@ -418,6 +430,40 @@ namespace QuickMedia {
         Display *display;
     };
 
+    enum class WindowFullscreenState {
+        UNSET,
+        SET,
+        TOGGLE
+    };
+
+    static bool window_set_fullscreen(Display *display, Window window, WindowFullscreenState state) {
+        Atom wm_state_atom = XInternAtom(display, "_NET_WM_STATE", False);
+        Atom wm_state_fullscreen_atom = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
+        if(wm_state_atom == False || wm_state_fullscreen_atom == False) {
+            fprintf(stderr, "Failed to fullscreen window. The window manager doesn't support fullscreening windows.\n");
+            return false;
+        }
+
+        XEvent xev;
+        xev.type = ClientMessage;
+        xev.xclient.window = window;
+        xev.xclient.message_type = wm_state_atom;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = (int)state;
+        xev.xclient.data.l[1] = wm_state_fullscreen_atom;
+        xev.xclient.data.l[2] = 0;
+        xev.xclient.data.l[3] = 1;
+        xev.xclient.data.l[4] = 0;
+
+        if(!XSendEvent(display, XDefaultRootWindow(display), 0, SubstructureRedirectMask | SubstructureNotifyMask, &xev)) {
+            fprintf(stderr, "Failed to fullscreen window\n");
+            return false;
+        }
+
+        XFlush(display);
+        return true;
+    }
+
     void Program::video_content_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
@@ -496,8 +542,8 @@ namespace QuickMedia {
         }, on_window_create);
         load_video_error_check();
 
-        auto on_doubleclick = []() {
-            // TODO: Toggle fullscreen of video here
+        auto on_doubleclick = [this, disp]() {
+            window_set_fullscreen(disp, window.getSystemHandle(), WindowFullscreenState::TOGGLE);
         };
 
         sf::Clock ui_hide_timer;
@@ -614,6 +660,7 @@ namespace QuickMedia {
         }
 
         video_player_ui_window.reset();
+        window_set_fullscreen(disp, window.getSystemHandle(), WindowFullscreenState::UNSET);
     }
 
     enum class TrackMediaType {

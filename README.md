@@ -32,6 +32,5 @@ Add grid-view when thumbnails are visible.\
 Add scrollbar.\
 Add option to scale image to window size.\
 The search should wait until there are search results before clearing the search field and selecting the search suggestion.\
-Full-screening a video doesn't work.\
 Somehow deal with youtube banning ip when searching too often.\
 Optimize shadow rendering for items (Right now they fill too much space that is behind items). It should also be a blurry shadow.
