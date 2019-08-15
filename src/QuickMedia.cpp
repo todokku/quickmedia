@@ -588,6 +588,7 @@ namespace QuickMedia {
                     if(!ui_visible) {
                         ui_visible = true;
                         video_player_ui_window->setVisible(true);
+                        window.setMouseCursorVisible(true);
                     }
                 }
             }
@@ -630,6 +631,7 @@ namespace QuickMedia {
                 if(ui_hide_timer.getElapsedTime().asMilliseconds() > UI_HIDE_TIMEOUT) {
                     ui_visible = false;
                     video_player_ui_window->setVisible(false);
+                    window.setMouseCursorVisible(false);
                 }
 
                 const float ui_height = window_size.y * 0.025f;
@@ -661,6 +663,7 @@ namespace QuickMedia {
 
         video_player_ui_window.reset();
         window_set_fullscreen(disp, window.getSystemHandle(), WindowFullscreenState::UNSET);
+        window.setMouseCursorVisible(true);
     }
 
     enum class TrackMediaType {
