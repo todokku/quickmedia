@@ -2,6 +2,7 @@
 #include "../plugins/Manganelo.hpp"
 #include "../plugins/Youtube.hpp"
 #include "../plugins/Pornhub.hpp"
+#include "../plugins/Fourchan.hpp"
 #include "../include/Scale.hpp"
 #include "../include/Program.h"
 #include "../include/VideoPlayer.hpp"
@@ -103,6 +104,9 @@ namespace QuickMedia {
         } else if(strcmp(argv[1], "pornhub") == 0) {
             current_plugin = new Pornhub();
             plugin_logo_path = "../../../images/pornhub_logo.png";
+        } else if(strcmp(argv[1], "4chan") == 0) {
+            current_plugin = new Fourchan();
+            plugin_logo_path = "../../../images/4chan_logo.png";
         } else {
             usage();
             return -1;
@@ -148,6 +152,16 @@ namespace QuickMedia {
                     window.setKeyRepeatEnabled(false);
                     image_page();
                     window.setKeyRepeatEnabled(true);
+                    break;
+                }
+                case Page::CONTENT_LIST: {
+                    body->draw_thumbnails = true;
+                    content_list_page();
+                    break;
+                }
+                case Page::CONTENT_DETAILS: {
+                    body->draw_thumbnails = true;
+                    content_details_page();
                     break;
                 }
                 default:
@@ -233,7 +247,7 @@ namespace QuickMedia {
         return file_overwrite(path, Json::writeString(json_builder, json)) == 0;
     }
 
-    static std::string manga_extract_id_from_url(const std::string &url) {
+    static bool manga_extract_id_from_url(const std::string &url, std::string &manga_id) {
         bool manganelo_website = false;
         if(url.find("mangakakalot") != std::string::npos)
             manganelo_website = true;
@@ -247,24 +261,24 @@ namespace QuickMedia {
                 err_msg += url;
                 err_msg += " doesn't contain manga id";
                 show_notification("Manga", err_msg, Urgency::CRITICAL);
-                abort();
+                return false;
             }
 
-            std::string manga_id = url.substr(index + 6);
+            manga_id = url.substr(index + 6);
             if(manga_id.size() <= 2) {
                 std::string err_msg = "Url ";
                 err_msg += url;
                 err_msg += " doesn't contain manga id";
                 show_notification("Manga", err_msg, Urgency::CRITICAL);
-                abort();
+                return false;
             }
-            return manga_id;
+            return true;
         } else {
             std::string err_msg = "Unexpected url ";
             err_msg += url;
             err_msg += " is not manganelo or mangakakalot";
             show_notification("Manga", err_msg, Urgency::CRITICAL);
-            abort();
+            return false;
         }
     }
 
@@ -292,7 +306,9 @@ namespace QuickMedia {
                     return false;
                 }
 
-                std::string manga_id = manga_extract_id_from_url(content_url);
+                std::string manga_id;
+                if(!manga_extract_id_from_url(content_url, manga_id))
+                    return false;
                 content_storage_file = content_storage_dir.join(base64_encode(manga_id));
                 content_storage_json.clear();
                 content_storage_json["name"] = content_title;
@@ -303,10 +319,15 @@ namespace QuickMedia {
                 watched_videos.clear();
                 if(content_url.empty())
                     next_page = Page::SEARCH_RESULT;
+            } else if(next_page == Page::CONTENT_LIST) {
+                content_list_url = content_url;
             }
             current_page = next_page;
             return true;
         };
+
+        PluginResult front_page_result = current_plugin->get_front_page(body->items);
+        body->clamp_selection();
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
@@ -370,7 +391,7 @@ namespace QuickMedia {
         #if 0
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->clamp_selection();
+            body->selected_item = 0;
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
@@ -649,7 +670,7 @@ namespace QuickMedia {
 
                 if(sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
                     auto mouse_pos = sf::Mouse::getPosition(window);
-                    if(mouse_pos.y >= window_size.y - ui_height) {
+                    if(mouse_pos.y >= window_size.y - ui_height && mouse_pos.y <= window_size.y) {
                         if(seekable)
                             video_player->set_progress((double)mouse_pos.x / (double)window_size.x);
                         else
@@ -687,10 +708,29 @@ namespace QuickMedia {
         return exec_program(args, nullptr, nullptr);
     }
 
+    void Program::select_episode(BodyItem *item, bool start_from_beginning) {
+        images_url = item->url;
+        chapter_title = item->title;
+        image_index = 0;
+        current_page = Page::IMAGES;
+        if(start_from_beginning)
+            return;
+
+        const Json::Value &json_chapters = content_storage_json["chapters"];
+        if(json_chapters.isObject()) {
+            const Json::Value &json_chapter = json_chapters[chapter_title];
+            if(json_chapter.isObject()) {
+                const Json::Value &current = json_chapter["current"];
+                if(current.isNumeric())
+                    image_index = current.asInt() - 1;
+            }
+        }
+    }
+
     void Program::episode_list_page() {
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->clamp_selection();
+            body->selected_item = 0;
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
@@ -698,21 +738,7 @@ namespace QuickMedia {
             if(!selected_item)
                 return false;
 
-            images_url = selected_item->url;
-            chapter_title = selected_item->title;
-            image_index = 0;
-            current_page = Page::IMAGES;
-
-            const Json::Value &json_chapters = content_storage_json["chapters"];
-            if(json_chapters.isObject()) {
-                const Json::Value &json_chapter = json_chapters[chapter_title];
-                if(json_chapter.isObject()) {
-                    const Json::Value &current = json_chapter["current"];
-                    if(current.isNumeric())
-                        image_index = current.asInt() - 1;
-                }
-            }
-
+            select_episode(selected_item, false);
             return true;
         };
 
@@ -790,8 +816,7 @@ namespace QuickMedia {
                 error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index + 1));
             }
         } else if(image_result == ImageResult::END) {
-            // TODO: Improve this message
-            error_message.setString("End of chapter");
+            error_message.setString("End of " + chapter_title);
         } else {
             // TODO: Convert ImageResult error to a string and show to user
             error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index + 1));
@@ -800,6 +825,7 @@ namespace QuickMedia {
 
         int num_images = 0;
         image_plugin->get_number_of_images(images_url, num_images);
+        image_index = std::min(image_index, num_images);
 
         Json::Value &json_chapters = content_storage_json["chapters"];
         Json::Value json_chapter;
@@ -858,10 +884,21 @@ namespace QuickMedia {
                         if(image_index > 0) {
                             --image_index;
                             return;
+                        } else if(image_index == 0 && body->selected_item < (int)body->items.size() - 1) {
+                            // TODO: Make this work if the list is sorted differently than from newest to oldest.
+                            body->selected_item++;
+                            select_episode(body->items[body->selected_item].get(), true);
+                            image_index = 99999; // Start at the page that shows we are at the end of the chapter
+                            return;
                         }
                     } else if(event.key.code == sf::Keyboard::Down) {
                         if(image_index < num_images) {
                             ++image_index;
+                            return;
+                        } else if(image_index == num_images && body->selected_item > 0) {
+                            // TODO: Make this work if the list is sorted differently than from newest to oldest.
+                            body->selected_item--;
+                            select_episode(body->items[body->selected_item].get(), true);
                             return;
                         }
                     } else if(event.key.code == sf::Keyboard::Escape) {
@@ -910,6 +947,127 @@ namespace QuickMedia {
             chapter_text.setPosition(std::floor(window_size.x * 0.5f - text_bounds.width * 0.5f), std::floor(window_size.y - background_height * 0.5f - font_height * 0.5f));
             window.draw(chapter_text);
 
+            window.display();
+        }
+    }
+
+    void Program::content_list_page() {
+        if(current_plugin->get_content_list(content_list_url, body->items) != PluginResult::OK) {
+            show_notification("Content list", "Failed to get content list for url: " + content_list_url, Urgency::CRITICAL);
+            current_page = Page::SEARCH_SUGGESTION;
+            return;
+        }
+
+        search_bar->onTextUpdateCallback = [this](const std::string &text) {
+            body->filter_search_fuzzy(text);
+            body->selected_item = 0;
+        };
+
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+            BodyItem *selected_item = body->get_selected();
+            if(!selected_item)
+                return false;
+
+            content_episode = selected_item->title;
+            content_url = selected_item->url;
+            current_page = Page::CONTENT_DETAILS;
+            body->clear_items();
+            return true;
+        };
+
+        sf::Vector2f body_pos;
+        sf::Vector2f body_size;
+        bool resized = true;
+        sf::Event event;
+
+        while (current_page == Page::CONTENT_LIST) {
+            while (window.pollEvent(event)) {
+                base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized)
+                    resized = true;
+            }
+
+            // TODO: This code is duplicated in many places. Handle it in one place.
+            if(resized) {
+                search_bar->onWindowResize(window_size);
+
+                float body_padding_horizontal = 50.0f;
+                float body_padding_vertical = 50.0f;
+                float body_width = window_size.x - body_padding_horizontal * 2.0f;
+                if(body_width < 400) {
+                    body_width = window_size.x;
+                    body_padding_horizontal = 0.0f;
+                }
+
+                float search_bottom = search_bar->getBottom();
+                body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+            }
+
+            search_bar->update();
+
+            window.clear(back_color);
+            body->draw(window, body_pos, body_size);
+            search_bar->draw(window);
+            window.display();
+        }
+    }
+
+    void Program::content_details_page() {
+        if(current_plugin->get_content_details(content_list_url, content_url, body->items) != PluginResult::OK) {
+            show_notification("Content details", "Failed to get content details for url: " + content_url, Urgency::CRITICAL);
+            // TODO: This will return to an empty content list.
+            // Each page should have its own @Body so we can return to the last page and still have the data loaded
+            // however the cached images should be cleared.
+            current_page = Page::CONTENT_LIST;
+            return;
+        }
+
+        // Instead of using search bar to searching, use it for commenting.
+        // TODO: Have an option for the search bar to be multi-line.
+        search_bar->onTextUpdateCallback = nullptr;
+
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+            if(text.empty())
+                return false;
+            
+            return true;
+        };
+
+        sf::Vector2f body_pos;
+        sf::Vector2f body_size;
+        bool resized = true;
+        sf::Event event;
+
+        while (current_page == Page::CONTENT_DETAILS) {
+            while (window.pollEvent(event)) {
+                base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized)
+                    resized = true;
+            }
+
+            // TODO: This code is duplicated in many places. Handle it in one place.
+            if(resized) {
+                search_bar->onWindowResize(window_size);
+
+                float body_padding_horizontal = 50.0f;
+                float body_padding_vertical = 50.0f;
+                float body_width = window_size.x - body_padding_horizontal * 2.0f;
+                if(body_width < 400) {
+                    body_width = window_size.x;
+                    body_padding_horizontal = 0.0f;
+                }
+
+                float search_bottom = search_bar->getBottom();
+                body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+            }
+
+            search_bar->update();
+
+            window.clear(back_color);
+            body->draw(window, body_pos, body_size);
+            search_bar->draw(window);
             window.display();
         }
     }

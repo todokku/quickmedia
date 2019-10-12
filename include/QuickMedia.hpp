@@ -27,6 +27,10 @@ namespace QuickMedia {
         void video_content_page();
         void episode_list_page();
         void image_page();
+        void content_list_page();
+        void content_details_page();
+
+        void select_episode(BodyItem *item, bool start_from_beginning);
     private:
         sf::RenderWindow window;
         sf::Vector2f window_size;
@@ -39,7 +43,9 @@ namespace QuickMedia {
         // TODO: Combine these
         std::string images_url;
         std::string content_title;
+        std::string content_episode;
         std::string content_url;
+        std::string content_list_url;
         std::string chapter_title;
         int image_index;
         Path content_storage_file;

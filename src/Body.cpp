@@ -54,6 +54,7 @@ namespace QuickMedia {
 
     void Body::clear_items() {
         items.clear();
+        selected_item = 0;
         //item_thumbnail_textures.clear();
     }
 
@@ -151,6 +152,7 @@ namespace QuickMedia {
         // Find the starting row that can be drawn to make selected row visible as well
         int visible_rows = 0;
         int first_visible_item = selected_item;
+        assert(first_visible_item >= 0 && first_visible_item < (int)items.size());
         for(; first_visible_item >= 0 && visible_rows < max_visible_rows; --first_visible_item) {
             auto &item = items[first_visible_item];
             if(item->visible)
@@ -235,7 +237,7 @@ namespace QuickMedia {
                 const Json::Value &current_json = item_progress["current"];
                 const Json::Value &total_json = item_progress["total"];
                 if(current_json.isNumeric() && total_json.isNumeric()) {
-                    progress_text.setString(std::string("Progress: ") + std::to_string(current_json.asInt()) + "/" + std::to_string(total_json.asInt()));
+                    progress_text.setString(std::string("Page: ") + std::to_string(current_json.asInt()) + "/" + std::to_string(total_json.asInt()));
                     auto bounds = progress_text.getLocalBounds();
                     progress_text.setPosition(std::floor(item_pos.x + size.x - bounds.width - 10.0f), std::floor(item_pos.y));
                     window.draw(progress_text);

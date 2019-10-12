@@ -7,6 +7,8 @@ namespace QuickMedia {
         SEARCH_RESULT,
         VIDEO_CONTENT,
         EPISODE_LIST,
-        IMAGES
+        IMAGES,
+        CONTENT_LIST,
+        CONTENT_DETAILS
     };
 }

@@ -2,6 +2,7 @@
 #include "../../include/Program.h"
 #include <sstream>
 #include <iomanip>
+#include <array>
 
 static int accumulate_string(char *data, int size, void *userdata) {
     std::string *str = (std::string*)userdata;
@@ -28,7 +29,8 @@ namespace QuickMedia {
     }
 
     DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
-        std::vector<const char*> args = { "curl", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L" };
+        sf::Clock timer;
+        std::vector<const char*> args = { "curl", "-f", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L" };
         for(const CommandArg &arg : additional_args) {
             args.push_back(arg.option.c_str());
             args.push_back(arg.value.c_str());
@@ -38,6 +40,7 @@ namespace QuickMedia {
         args.push_back(nullptr);
         if(exec_program(args.data(), accumulate_string, &result) != 0)
             return DownloadResult::NET_ERR;
+        fprintf(stderr, "Download duration for %s: %d ms\n", url.c_str(), timer.getElapsedTime().asMilliseconds());
         return DownloadResult::OK;
     }
 
@@ -62,6 +65,35 @@ namespace QuickMedia {
         }
 
         return str.substr(start, end - start + 1);
+    }
+
+    struct HtmlEscapeSequence {
+        std::string escape_sequence;
+        std::string unescaped_str;
+    };
+
+    void string_replace_all(std::string &str, const std::string &old_str, const std::string &new_str) {
+        size_t index = 0;
+        while(true) {
+            index = str.find(old_str, index);
+            if(index == std::string::npos)
+                return;
+            str.replace(index, old_str.size(), new_str);
+        }
+    }
+
+    void html_unescape_sequences(std::string &str) {
+        const std::array<HtmlEscapeSequence, 5> escape_sequences = {
+            HtmlEscapeSequence { "&quot;", "\"" },
+            HtmlEscapeSequence { "&#39;", "'" },
+            HtmlEscapeSequence { "&lt;", "<" },
+            HtmlEscapeSequence { "&gt;", ">" },
+            HtmlEscapeSequence { "&amp;", "&" } // This should be last, to not accidentally replace a new sequence caused by replacing this
+        };
+
+        for(const HtmlEscapeSequence &escape_sequence : escape_sequences) {
+            string_replace_all(str, escape_sequence.escape_sequence, escape_sequence.unescaped_str);
+        }
     }
 
     std::string Plugin::url_param_encode(const std::string &param) const {
