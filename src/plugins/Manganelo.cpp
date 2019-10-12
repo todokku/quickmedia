@@ -144,8 +144,12 @@ namespace QuickMedia {
             [](QuickMediaHtmlNode *node, void *userdata) {
                 auto *urls = (std::vector<std::string>*)userdata;
                 const char *src = quickmedia_html_node_get_attribute_value(node, "src");
-                if(src)
-                    urls->push_back(src);
+                if(src) {
+                    // TODO: If image loads too slow, try switching mirror
+                    std::string image_url = src;
+                    string_replace_all(image_url, "s3.mkklcdnv3.com", "bu.mkklcdnbuv1.com");
+                    urls->emplace_back(std::move(image_url));
+                }
             }, &last_chapter_image_urls);
 
         cleanup:
