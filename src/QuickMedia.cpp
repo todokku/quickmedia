@@ -854,7 +854,7 @@ namespace QuickMedia {
         bool resized = true;
         sf::Event event;
 
-        sf::Text chapter_text(std::string("Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
+        sf::Text chapter_text(chapter_title + std::string(" | Page ") + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
         if(image_index == num_images)
             chapter_text.setString("End");
         chapter_text.setFillColor(sf::Color::White);
