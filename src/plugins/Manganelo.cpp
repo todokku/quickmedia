@@ -93,29 +93,8 @@ namespace QuickMedia {
         return SuggestionResult::OK;
     }
 
-    ImageResult Manganelo::get_image_by_index(const std::string &url, int index, std::string &image_data) {
-        ImageResult image_result = get_image_urls_for_chapter(url);
-        if(image_result != ImageResult::OK)
-            return image_result;
-
-        int num_images = last_chapter_image_urls.size();
-        if(index < 0 || index >= num_images)
-            return ImageResult::END;
-        
-        // TODO: Cache image in file/memory
-        switch(download_to_string(last_chapter_image_urls[index], image_data)) {
-            case DownloadResult::OK:
-                return ImageResult::OK;
-            case DownloadResult::ERR:
-                return ImageResult::ERR;
-            case DownloadResult::NET_ERR:
-                return ImageResult::NET_ERR;
-            default:
-                return ImageResult::ERR;
-        }
-    }
-
     ImageResult Manganelo::get_number_of_images(const std::string &url, int &num_images) {
+        std::lock_guard<std::mutex> lock(image_urls_mutex);
         num_images = 0;
         ImageResult image_result = get_image_urls_for_chapter(url);
         if(image_result != ImageResult::OK)
@@ -147,7 +126,7 @@ namespace QuickMedia {
                 if(src) {
                     // TODO: If image loads too slow, try switching mirror
                     std::string image_url = src;
-                    string_replace_all(image_url, "s3.mkklcdnv3.com", "bu.mkklcdnbuv1.com");
+                    //string_replace_all(image_url, "s3.mkklcdnv3.com", "bu.mkklcdnbuv1.com");
                     urls->emplace_back(std::move(image_url));
                 }
             }, &last_chapter_image_urls);
@@ -157,5 +136,23 @@ namespace QuickMedia {
         if(result == 0)
             last_chapter_url = url;
         return result == 0 ? ImageResult::OK : ImageResult::ERR;
+    }
+
+    ImageResult Manganelo::for_each_page_in_chapter(const std::string &chapter_url, PageCallback callback) {
+        std::vector<std::string> image_urls;
+        {
+            std::lock_guard<std::mutex> lock(image_urls_mutex);
+            ImageResult image_result = get_image_urls_for_chapter(chapter_url);
+            if(image_result != ImageResult::OK)
+                return image_result;
+
+            image_urls = last_chapter_image_urls;
+        }
+
+        for(const std::string &url : image_urls) {
+            if(!callback(url))
+                break;
+        }
+        return ImageResult::OK;
     }
 }

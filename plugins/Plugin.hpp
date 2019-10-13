@@ -50,6 +50,7 @@ namespace QuickMedia {
 
     class Plugin {
     public:
+        Plugin(const std::string &name) : name(name) {}
         virtual ~Plugin() = default;
 
         virtual PluginResult get_front_page(BodyItems &result_items) {
@@ -74,6 +75,8 @@ namespace QuickMedia {
         virtual int get_search_delay() const = 0;
         virtual bool search_suggestion_is_search() const { return false; }
         virtual Page get_page_after_search() const = 0;
+
+        const std::string name;
     protected:
         std::string url_param_encode(const std::string &param) const;
     };

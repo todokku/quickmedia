@@ -5,6 +5,7 @@
 namespace QuickMedia {
     class Fourchan : public Plugin {
     public:
+        Fourchan() : Plugin("4chan") {}
         PluginResult get_front_page(BodyItems &result_items) override;
         SearchResult search(const std::string &url, BodyItems &result_items) override;
         SuggestionResult update_search_suggestions(const std::string &text, BodyItems &result_items) override;

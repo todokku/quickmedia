@@ -14,6 +14,7 @@
 
 namespace QuickMedia {
     class Plugin;
+    class Manganelo;
     
     class Program {
     public:
@@ -30,6 +31,14 @@ namespace QuickMedia {
         void content_list_page();
         void content_details_page();
 
+        enum class LoadImageResult {
+            OK,
+            FAILED,
+            DOWNLOAD_IN_PROGRESS
+        };
+
+        LoadImageResult load_image_by_index(int image_index, sf::Texture &image_texture, sf::String &error_message);
+        void download_chapter_images_if_needed(Manganelo *image_plugin);
         void select_episode(BodyItem *item, bool start_from_beginning);
     private:
         sf::RenderWindow window;
@@ -49,8 +58,13 @@ namespace QuickMedia {
         std::string chapter_title;
         int image_index;
         Path content_storage_file;
+        Path content_cache_dir;
+        std::string manga_id_base64;
         Json::Value content_storage_json;
         std::unordered_set<std::string> watched_videos;
         std::future<BodyItems> search_suggestion_future;
+        std::future<void> image_download_future;
+        std::string downloading_chapter_url;
+        bool image_download_cancel;
     };
 }

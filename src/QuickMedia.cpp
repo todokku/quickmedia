@@ -150,7 +150,9 @@ namespace QuickMedia {
                 case Page::IMAGES: {
                     body->draw_thumbnails = false;
                     window.setKeyRepeatEnabled(false);
+                    window.setFramerateLimit(4);
                     image_page();
+                    window.setFramerateLimit(0);
                     window.setKeyRepeatEnabled(true);
                     break;
                 }
@@ -309,7 +311,9 @@ namespace QuickMedia {
                 std::string manga_id;
                 if(!manga_extract_id_from_url(content_url, manga_id))
                     return false;
-                content_storage_file = content_storage_dir.join(base64_encode(manga_id));
+
+                manga_id_base64 = base64_encode(manga_id);
+                content_storage_file = content_storage_dir.join(manga_id_base64);
                 content_storage_json.clear();
                 content_storage_json["name"] = content_title;
                 FileType file_type = get_file_type(content_storage_file);
@@ -792,6 +796,90 @@ namespace QuickMedia {
         }
     }
 
+    Program::LoadImageResult Program::load_image_by_index(int image_index, sf::Texture &image_texture, sf::String &error_message) {
+        Path image_path = content_cache_dir;
+        image_path.join(std::to_string(image_index + 1));
+
+        Path image_finished_path(image_path.data + ".finished");
+        if(get_file_type(image_finished_path) != FileType::FILE_NOT_FOUND && get_file_type(image_path) == FileType::REGULAR) {
+            std::string image_data;
+            if(file_get_content(image_path, image_data) == 0) {
+                if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
+                    image_texture.setSmooth(true);
+                    image_texture.generateMipmap();
+                    return LoadImageResult::OK;
+                } else {
+                    error_message = std::string("Failed to load image for page ") + std::to_string(image_index + 1);
+                    return LoadImageResult::FAILED;
+                }
+            } else {
+                show_notification("Manganelo", "Failed to load image for page " + std::to_string(image_index + 1) + ". Image filepath: " + image_path.data, Urgency::CRITICAL);
+                error_message = std::string("Failed to load image for page ") + std::to_string(image_index + 1);
+                return LoadImageResult::FAILED;
+            }
+        } else {
+            error_message = "Downloading page " + std::to_string(image_index + 1) + "...";
+            return LoadImageResult::DOWNLOAD_IN_PROGRESS;
+        }
+    }
+
+    void Program::download_chapter_images_if_needed(Manganelo *image_plugin) {
+        if(downloading_chapter_url == images_url)
+            return;
+
+        downloading_chapter_url = images_url;
+        if(image_download_future.valid()) {
+            image_download_cancel = true;
+            image_download_future.get();
+            image_download_cancel = false;
+        }
+
+        std::string chapter_url = images_url;
+        Path content_cache_dir_ = content_cache_dir;
+        image_download_future = std::async(std::launch::async, [chapter_url, image_plugin, content_cache_dir_, this]() {
+            // TODO: Download images in parallel
+            int page = 1;
+            image_plugin->for_each_page_in_chapter(chapter_url, [content_cache_dir_, &page, this](const std::string &url) {
+                if(image_download_cancel)
+                    return false;
+                #if 0
+                size_t last_index = url.find_last_of('/');
+                if(last_index == std::string::npos || (int)url.size() - (int)last_index + 1 <= 0) {
+                    show_notification("Manganelo", "Image url is in incorrect format, missing '/': " + url, Urgency::CRITICAL);
+                    return false;
+                }
+
+                std::string image_filename = url.substr(last_index + 1);
+                Path image_filepath = content_cache_dir_;
+                image_filepath.join(image_filename);
+                #endif
+                Path image_filepath = content_cache_dir_;
+                image_filepath.join(std::to_string(page++));
+
+                Path lockfile_path(image_filepath.data + ".finished");
+                if(get_file_type(lockfile_path) != FileType::FILE_NOT_FOUND) 
+                    return true;
+
+                std::string image_content;
+                if(download_to_string(url, image_content) != DownloadResult::OK) {
+                    show_notification("Manganelo", "Failed to download image: " + url, Urgency::CRITICAL);
+                    return false;
+                }
+
+                if(file_overwrite(image_filepath, image_content) != 0) {
+                    show_notification("Storage", "Failed to save image to file: " + image_filepath.data, Urgency::CRITICAL);
+                    return false;
+                }
+
+                if(create_lock_file(lockfile_path) != 0) {
+                    show_notification("Storage", "Failed to save image finished state to file: " + lockfile_path.data, Urgency::CRITICAL);
+                    return false;
+                }
+                return true;
+            });
+        });
+    }
+
     void Program::image_page() {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
@@ -801,11 +889,22 @@ namespace QuickMedia {
         sf::Text error_message("", font, 30);
         error_message.setFillColor(sf::Color::White);
 
+        assert(current_plugin->name == "manganelo");
         Manganelo *image_plugin = static_cast<Manganelo*>(current_plugin);
         std::string image_data;
+        bool download_in_progress = false;
+
+        content_cache_dir = get_cache_dir().join("manga").join(manga_id_base64).join(base64_encode(chapter_title));
+        if(create_directory_recursive(content_cache_dir) != 0) {
+            show_notification("Storage", "Failed to create directory: " + content_cache_dir.data, Urgency::CRITICAL);
+            current_page = Page::EPISODE_LIST;
+            return;
+        }
+        download_chapter_images_if_needed(image_plugin);
 
         // TODO: Optimize this somehow. One image alone uses more than 20mb ram! Total ram usage for viewing one image
         // becomes 40mb (private memory, almost 100mb in total!) Unacceptable!
+        #if 0
         ImageResult image_result = image_plugin->get_image_by_index(images_url, image_index, image_data);
         if(image_result == ImageResult::OK) {
             if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
@@ -822,10 +921,23 @@ namespace QuickMedia {
             error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index + 1));
         }
         image_data.resize(0);
+        #endif
 
         int num_images = 0;
         image_plugin->get_number_of_images(images_url, num_images);
         image_index = std::min(image_index, num_images);
+
+        if(image_index < num_images) {
+            sf::String error_msg;
+            LoadImageResult load_image_result = load_image_by_index(image_index, image_texture, error_msg);
+            if(load_image_result == LoadImageResult::OK)
+                image.setTexture(image_texture, true);
+            else if(load_image_result == LoadImageResult::DOWNLOAD_IN_PROGRESS)
+                download_in_progress = true;
+            error_message.setString(error_msg);
+        } else if(image_index == num_images) {
+            error_message.setString("End of " + chapter_title);
+        }
 
         Json::Value &json_chapters = content_storage_json["chapters"];
         Json::Value json_chapter;
@@ -868,9 +980,12 @@ namespace QuickMedia {
             texture_size_f = sf::Vector2f(texture_size.x, texture_size.y);
         }
 
+        sf::Clock check_downloaded_timer;
+        const sf::Int32 check_downloaded_timeout_ms = 1000;
+
         // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {
-            if(window.waitEvent(event)) {
+            while(window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     current_page = Page::EXIT;
                 } else if(event.type == sf::Event::Resized) {
@@ -905,6 +1020,23 @@ namespace QuickMedia {
                         current_page = Page::EPISODE_LIST;
                     }
                 }
+            }
+
+            if(download_in_progress && check_downloaded_timer.getElapsedTime().asMilliseconds() >= check_downloaded_timeout_ms) {
+                sf::String error_msg;
+                LoadImageResult load_image_result = load_image_by_index(image_index, image_texture, error_msg);
+                if(load_image_result == LoadImageResult::OK) {
+                    image.setTexture(image_texture, true);
+                    download_in_progress = false;
+                    error = false;
+                    texture_size = image.getTexture()->getSize();
+                    texture_size_f = sf::Vector2f(texture_size.x, texture_size.y);
+                } else if(load_image_result == LoadImageResult::FAILED) {
+                    download_in_progress = false;
+                }
+                error_message.setString(error_msg);
+                resized = true;
+                check_downloaded_timer.restart();
             }
 
             const float font_height = chapter_text.getCharacterSize() + 8.0f;

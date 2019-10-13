@@ -6,6 +6,8 @@
 #include <pwd.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
 #endif
 
 static int makedir(const char *path) {
@@ -49,12 +51,16 @@ namespace QuickMedia {
         return get_home_dir().join(".config").join("quickmedia");
     }
 
+    Path get_cache_dir() {
+        return get_home_dir().join(".cache").join("quickmedia");
+    }
+
     int create_directory_recursive(const Path &path) {
         size_t index = 0;
         while(true) {
             index = path.data.find('/', index);
             
-            // Skips first '/' on unix-like systems
+            // Skips first '/', we don't want to try and create the root directory
             if(index == 0) {
                 ++index;
                 continue;
@@ -100,10 +106,20 @@ namespace QuickMedia {
     int file_overwrite(const Path &path, const std::string &data) {
         FILE *file = fopen(path.data.c_str(), "wb");
         if(!file)
-            return -errno;
+            return errno;
         
-        fwrite(data.data(), 1, data.size(), file);
-        fclose(file);
-        return 0;
+        if(fwrite(data.data(), 1, data.size(), file) != data.size()) {
+            fclose(file);
+            return -1;
+        }
+
+        return fclose(file);
+    }
+
+    int create_lock_file(const Path &path) {
+        int fd = open(path.data.c_str(), O_CREAT | O_EXCL);
+        if(fd == -1)
+            return errno;
+        return close(fd);
     }
 }
