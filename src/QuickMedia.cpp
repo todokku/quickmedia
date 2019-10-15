@@ -6,6 +6,7 @@
 #include "../include/Scale.hpp"
 #include "../include/Program.h"
 #include "../include/VideoPlayer.hpp"
+#include "../include/StringUtils.hpp"
 #include <cppcodec/base64_rfc4648.hpp>
 
 #include <SFML/Graphics/RectangleShape.hpp>
@@ -52,7 +53,7 @@ namespace QuickMedia {
             fprintf(stderr, "Failed to load font!\n");
             abort();
         }
-        body = new Body(font);
+        body = new Body(this, font);
 
         struct sigaction action;
         action.sa_handler = sigpipe_handler;
@@ -83,9 +84,32 @@ namespace QuickMedia {
     }
 
     static void usage() {
-        fprintf(stderr, "usage: QuickMedia <plugin>\n");
+        fprintf(stderr, "usage: QuickMedia <plugin> [--tor]\n");
         fprintf(stderr, "OPTIONS:\n");
-        fprintf(stderr, "plugin    The plugin to use. Should be either manganelo, youtube or pornhub\n");
+        fprintf(stderr, "plugin    The plugin to use. Should be either 4chan, manganelo, pornhub or youtube\n");
+        fprintf(stderr, "--tor     Use tor. Disabled by default\n");
+        fprintf(stderr, "EXAMPLES:\n");
+        fprintf(stderr, "QuickMedia manganelo\n");
+        fprintf(stderr, "QuickMedia youtube --tor\n");
+    }
+
+    static bool is_program_executable_by_name(const char *name) {
+        // TODO: Implement for Windows. Windows also uses semicolon instead of colon as a separator
+        char *env = getenv("PATH");
+        std::unordered_set<std::string> paths;
+        string_split(env, ':', [&paths](const char *str, size_t size) {
+            paths.insert(std::string(str, size));
+            return true;
+        });
+
+        for(const std::string &path_str : paths) {
+            Path path(path_str);
+            path.join(name);
+            if(get_file_type(path) == FileType::REGULAR)
+                return true;
+        }
+
+        return false;
     }
 
     int Program::run(int argc, char **argv) {
@@ -94,23 +118,43 @@ namespace QuickMedia {
             return -1;
         }
 
+        current_plugin = nullptr;
         std::string plugin_logo_path;
-        if(strcmp(argv[1], "manganelo") == 0) {
-            current_plugin = new Manganelo();
-            plugin_logo_path = "../../../images/manganelo_logo.png";
-        } else if(strcmp(argv[1], "youtube") == 0) {
-            current_plugin = new Youtube();
-            plugin_logo_path = "../../../images/yt_logo_rgb_dark_small.png";
-        } else if(strcmp(argv[1], "pornhub") == 0) {
-            current_plugin = new Pornhub();
-            plugin_logo_path = "../../../images/pornhub_logo.png";
-        } else if(strcmp(argv[1], "4chan") == 0) {
-            current_plugin = new Fourchan();
-            plugin_logo_path = "../../../images/4chan_logo.png";
-        } else {
+        bool use_tor = false;
+
+        for(int i = 1; i < argc; ++i) {
+            if(!current_plugin) {
+                if(strcmp(argv[i], "manganelo") == 0) {
+                    current_plugin = new Manganelo();
+                    plugin_logo_path = "../../../images/manganelo_logo.png";
+                } else if(strcmp(argv[i], "youtube") == 0) {
+                    current_plugin = new Youtube();
+                    plugin_logo_path = "../../../images/yt_logo_rgb_dark_small.png";
+                } else if(strcmp(argv[i], "pornhub") == 0) {
+                    current_plugin = new Pornhub();
+                    plugin_logo_path = "../../../images/pornhub_logo.png";
+                } else if(strcmp(argv[i], "4chan") == 0) {
+                    current_plugin = new Fourchan();
+                    plugin_logo_path = "../../../images/4chan_logo.png";
+                }
+            }
+
+            if(strcmp(argv[i], "--tor") == 0) {
+                use_tor = true;
+            }
+        }
+
+        if(!current_plugin) {
             usage();
             return -1;
         }
+
+        if(use_tor && !is_program_executable_by_name("torsocks")) {
+            fprintf(stderr, "torsocks needs to be installed (and accessible from PATH environment variable) when using the --tor option\n");
+            return -2;
+        }
+
+        current_plugin->use_tor = use_tor;
 
         if(!plugin_logo_path.empty()) {
             if(!plugin_logo.loadFromFile(plugin_logo_path)) {
@@ -532,7 +576,7 @@ namespace QuickMedia {
             }
         };
         
-        video_player = std::make_unique<VideoPlayer>([this, &video_player, &seekable, &load_video_error_check](const char *event_name) {
+        video_player = std::make_unique<VideoPlayer>(current_plugin->use_tor, [this, &video_player, &seekable, &load_video_error_check](const char *event_name) {
             bool end_of_file = false;
             if(strcmp(event_name, "pause") == 0) {
                 double time_remaining = 0.0;
@@ -861,7 +905,7 @@ namespace QuickMedia {
                     return true;
 
                 std::string image_content;
-                if(download_to_string(url, image_content) != DownloadResult::OK) {
+                if(current_plugin->download_to_string(url, image_content) != DownloadResult::OK) {
                     show_notification("Manganelo", "Failed to download image: " + url, Urgency::CRITICAL);
                     return false;
                 }
@@ -981,7 +1025,7 @@ namespace QuickMedia {
         }
 
         sf::Clock check_downloaded_timer;
-        const sf::Int32 check_downloaded_timeout_ms = 1000;
+        const sf::Int32 check_downloaded_timeout_ms = 500;
 
         // TODO: Show to user if a certain page is missing (by checking page name (number) and checking if some are skipped)
         while (current_page == Page::IMAGES) {

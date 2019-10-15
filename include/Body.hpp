@@ -8,6 +8,8 @@
 #include <thread>
 
 namespace QuickMedia {
+    class Program;
+
     class BodyItem {
     public:
         BodyItem(const std::string &_title): title(_title), visible(true) {
@@ -24,7 +26,7 @@ namespace QuickMedia {
 
     class Body {
     public:
-        Body(sf::Font &font);
+        Body(Program *program, sf::Font &font);
 
         // Select previous item, ignoring invisible items
         void select_previous_item();
@@ -56,6 +58,7 @@ namespace QuickMedia {
             std::string url;
             std::shared_ptr<sf::Texture> texture;
         };
+        Program *program;
         std::shared_ptr<sf::Texture> load_thumbnail_from_url(const std::string &url);
         std::vector<ThumbnailData> item_thumbnail_textures;
         bool loading_thumbnail;

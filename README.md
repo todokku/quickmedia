@@ -1,9 +1,19 @@
 # QuickMedia
-Native clients of websites with fast access to what you want to see. [Old video demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
-Currently supported websites: `youtube`, `manganelo` and _others_.\
+Native clients of websites with fast access to what you want to see, **with TOR support**. See [old video demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
+Currently supported websites: `youtube`, `manganelo` and _others_. **Note:** Manganelo doesn't work when used with TOR.\
 Here is an example with YouTube:\
 ![QuickMedia Youtube Picture](QuickMediaYoutube.png)\
 Config data, including manga progress is stored under `$HOME/.config/quickmedia`
+## Usage
+```
+usage: QuickMedia <plugin> [--tor]
+OPTIONS:
+plugin    The plugin to use. Should be either 4chan, manganelo, pornhub or youtube
+--tor     Use tor. Disabled by default
+EXAMPLES:
+QuickMedia manganelo
+QuickMedia youtube --tor
+```
 ## Controls
 Press `ESC` to go back to the previous menu.\
 Press `Ctrl + T` when hovering over a manga chapter to start tracking manga after that chapter. This only works if AutoMedia is installed and
@@ -19,7 +29,8 @@ See project.conf \[dependencies].
 ### Optional
 `mpv` is required for playing videos. This is not required if you dont plan on playing videos.\
 `youtube-dl` needs to be installed to play videos from youtube.\
-`notify-send` needs to be installed to show notifications (on Linux and other systems that uses d-bus notification system).
+`notify-send` needs to be installed to show notifications (on Linux and other systems that uses d-bus notification system).\
+`torsocks` needs to be installed when using the `--tor` option.
 # TODO
 If a search returns no results, then "No results found for ..." should be shown and navigation should go back to searching with suggestions.\
 Give user the option to start where they left off or from the start or from the start.\

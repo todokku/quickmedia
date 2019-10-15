@@ -21,6 +21,8 @@ namespace QuickMedia {
         Program();
         ~Program();
         int run(int argc, char **argv);
+
+        Plugin* get_current_plugin() { return current_plugin; }
     private:
         void base_event_handler(sf::Event &event, Page previous_page);
         void search_suggestion_page();

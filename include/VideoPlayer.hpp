@@ -35,7 +35,7 @@ namespace QuickMedia {
         };
 
         // @event_callback is called from another thread
-        VideoPlayer(EventCallbackFunc event_callback, VideoPlayerWindowCreateCallback window_create_callback);
+        VideoPlayer(bool use_tor, EventCallbackFunc event_callback, VideoPlayerWindowCreateCallback window_create_callback);
         ~VideoPlayer();
         VideoPlayer(const VideoPlayer&) = delete;
         VideoPlayer& operator=(const VideoPlayer&) = delete;
@@ -65,6 +65,7 @@ namespace QuickMedia {
         Error launch_video_process(const char *path, sf::WindowHandle parent_window);
         VideoPlayer::Error read_ipc_func();
     private:
+        bool use_tor;
         pid_t video_process_id;
         int ipc_socket;
         bool connected_to_ipc;

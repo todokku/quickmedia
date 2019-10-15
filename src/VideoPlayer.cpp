@@ -14,11 +14,11 @@
 
 const int RETRY_TIME_MS = 1000;
 const int MAX_RETRIES_CONNECT = 5;
-const int MAX_RETRIES_FIND_WINDOW = 10;
 const int READ_TIMEOUT_MS = 200;
 
 namespace QuickMedia {
-    VideoPlayer::VideoPlayer(EventCallbackFunc _event_callback, VideoPlayerWindowCreateCallback _window_create_callback) :
+    VideoPlayer::VideoPlayer(bool use_tor, EventCallbackFunc _event_callback, VideoPlayerWindowCreateCallback _window_create_callback) :
+        use_tor(use_tor),
         video_process_id(-1),
         ipc_socket(-1),
         connected_to_ipc(false),
@@ -64,15 +64,18 @@ namespace QuickMedia {
         }
 
         const std::string parent_window_str = std::to_string(parent_window);
-        const char *args[] = { "mpv", "--keep-open=yes", /*"--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
+        std::vector<const char*> args;
+        if(use_tor)
+            args.push_back("torsocks");
+        args.insert(args.end(), { "mpv", "--keep-open=yes", /*"--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
             "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
             "--cache-secs=120", "--demuxer-max-bytes=40M", "--demuxer-max-back-bytes=20M",
             "--no-input-terminal",
             "--no-osc",
             "--profile=gpu-hq",
             /*"--vo=gpu", "--hwdec=auto",*/
-            "--wid", parent_window_str.c_str(), "--", path, nullptr };
-        if(exec_program_async(args, &video_process_id) != 0)
+            "--wid", parent_window_str.c_str(), "--", path, nullptr });
+        if(exec_program_async(args.data(), &video_process_id) != 0)
             return Error::FAIL_TO_LAUNCH_PROCESS;
 
         printf("mpv input ipc server: %s\n", ipc_server_path);
@@ -125,13 +128,17 @@ namespace QuickMedia {
     }
 
     VideoPlayer::Error VideoPlayer::update() {
+        int max_retries_find_window = 10;
+        if(use_tor)
+            max_retries_find_window = 30;
+
         if(ipc_socket == -1)
             return Error::INIT_FAILED;
 
         if(connect_tries == MAX_RETRIES_CONNECT)
             return Error::FAIL_TO_CONNECT_TIMEOUT;
 
-        if(find_window_tries == MAX_RETRIES_FIND_WINDOW)
+        if(find_window_tries == max_retries_find_window)
             return Error::FAIL_TO_FIND_WINDOW;
 
         if(!connected_to_ipc && retry_timer.getElapsedTime().asMilliseconds() >= RETRY_TIME_MS) {
@@ -153,8 +160,8 @@ namespace QuickMedia {
             size_t num_children = child_windows.size();
             if(num_children == 0) {
                 ++find_window_tries;
-                if(find_window_tries == MAX_RETRIES_FIND_WINDOW) {
-                    fprintf(stderr, "Failed to find mpv window after %d seconds\n", (RETRY_TIME_MS * MAX_RETRIES_FIND_WINDOW)/1000);
+                if(find_window_tries == max_retries_find_window) {
+                    fprintf(stderr, "Failed to find mpv window after %d seconds\n", (RETRY_TIME_MS * max_retries_find_window)/1000);
                     return Error::FAIL_TO_FIND_WINDOW_TIMEOUT;
                 }
             } else if(num_children == 1) {

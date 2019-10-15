@@ -1,4 +1,5 @@
 #include "../include/Body.hpp"
+#include "../include/QuickMedia.hpp"
 #include "../plugins/Plugin.hpp"
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Sprite.hpp>
@@ -9,7 +10,8 @@ const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
 
 namespace QuickMedia {
-    Body::Body(sf::Font &font) :
+    Body::Body(Program *program, sf::Font &font) :
+        program(program),
         title_text("", font, 14),
         progress_text("", font, 14),
         selected_item(0),
@@ -96,7 +98,7 @@ namespace QuickMedia {
         loading_thumbnail = true;
         thumbnail_load_thread = std::thread([this, result, url]() {
             std::string texture_data;
-            if(download_to_string(url, texture_data) == DownloadResult::OK) {
+            if(program->get_current_plugin()->download_to_string(url, texture_data) == DownloadResult::OK) {
                 if(result->loadFromMemory(texture_data.data(), texture_data.size()))
                     result->generateMipmap();
             }

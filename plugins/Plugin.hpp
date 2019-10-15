@@ -43,7 +43,6 @@ namespace QuickMedia {
         std::string value;
     };
 
-    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
     std::string strip(const std::string &str);
     void string_replace_all(std::string &str, const std::string &old_str, const std::string &new_str);
     void html_unescape_sequences(std::string &str);
@@ -76,7 +75,10 @@ namespace QuickMedia {
         virtual bool search_suggestion_is_search() const { return false; }
         virtual Page get_page_after_search() const = 0;
 
+        DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
+
         const std::string name;
+        bool use_tor = false;
     protected:
         std::string url_param_encode(const std::string &param) const;
     };

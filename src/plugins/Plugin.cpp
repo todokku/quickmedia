@@ -28,22 +28,6 @@ namespace QuickMedia {
         return {};
     }
 
-    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
-        sf::Clock timer;
-        std::vector<const char*> args = { "curl", "-f", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L" };
-        for(const CommandArg &arg : additional_args) {
-            args.push_back(arg.option.c_str());
-            args.push_back(arg.value.c_str());
-        }
-        args.push_back("--");
-        args.push_back(url.c_str());
-        args.push_back(nullptr);
-        if(exec_program(args.data(), accumulate_string, &result) != 0)
-            return DownloadResult::NET_ERR;
-        fprintf(stderr, "Download duration for %s: %d ms\n", url.c_str(), timer.getElapsedTime().asMilliseconds());
-        return DownloadResult::OK;
-    }
-
     static bool is_whitespace(char c) {
         return c == ' ' || c == '\n' || c == '\t' || c == '\v';
     }
@@ -111,5 +95,24 @@ namespace QuickMedia {
         }
 
         return result.str();
+    }
+
+    DownloadResult Plugin::download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args) {
+        sf::Clock timer;
+        std::vector<const char*> args;
+        if(use_tor)
+            args.push_back("torsocks");
+        args.insert(args.end(), { "curl", "-f", "-H", "Accept-Language: en-US,en;q=0.5", "--compressed", "-s", "-L" });
+        for(const CommandArg &arg : additional_args) {
+            args.push_back(arg.option.c_str());
+            args.push_back(arg.value.c_str());
+        }
+        args.push_back("--");
+        args.push_back(url.c_str());
+        args.push_back(nullptr);
+        if(exec_program(args.data(), accumulate_string, &result) != 0)
+            return DownloadResult::NET_ERR;
+        fprintf(stderr, "Download duration for %s: %d ms\n", url.c_str(), timer.getElapsedTime().asMilliseconds());
+        return DownloadResult::OK;
     }
 }
