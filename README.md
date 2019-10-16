@@ -15,6 +15,7 @@ QuickMedia manganelo
 QuickMedia youtube --tor
 ```
 ## Controls
+Press `arrow up` and `arrow down` to navigate the menu and also to go to the previous/next image when viewing manga.\
 Press `ESC` to go back to the previous menu.\
 Press `Ctrl + T` when hovering over a manga chapter to start tracking manga after that chapter. This only works if AutoMedia is installed and
 accessible in PATH environment variable.
