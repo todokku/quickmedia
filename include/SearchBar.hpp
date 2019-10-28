@@ -15,13 +15,14 @@ namespace QuickMedia {
     class SearchBar {
     public:
         SearchBar(sf::Font &font, sf::Texture &plugin_logo);
-        void draw(sf::RenderWindow &window);
+        void draw(sf::RenderWindow &window, bool draw_shadow = true);
         void update();
         void onWindowResize(const sf::Vector2f &window_size);
         void onTextEntered(sf::Uint32 codepoint);
         void clear();
 
         float getBottom() const;
+        float getBottomWithoutShadow() const;
 
         TextUpdateCallback onTextUpdateCallback;
         TextSubmitCallback onTextSubmitCallback;

@@ -30,8 +30,9 @@ namespace QuickMedia {
             plugin_logo_sprite.setTexture(plugin_logo, true);
     }
 
-    void SearchBar::draw(sf::RenderWindow &window) {
-        window.draw(background_shadow);
+    void SearchBar::draw(sf::RenderWindow &window, bool draw_shadow) {
+        if(draw_shadow)
+            window.draw(background_shadow);
         window.draw(shade);
         window.draw(background);
         window.draw(text);
@@ -128,5 +129,9 @@ namespace QuickMedia {
 
     float SearchBar::getBottom() const {
         return shade.getSize().y + background_shadow.getSize().y;
+    }
+
+    float SearchBar::getBottomWithoutShadow() const {
+        return shade.getSize().y;
     }
 }

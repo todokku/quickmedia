@@ -47,4 +47,5 @@ The search should wait until there are search results before clearing the search
 Somehow deal with youtube banning ip when searching too often.\
 Optimize shadow rendering for items (Right now they fill too much space that is behind items). It should also be a blurry shadow.\
 When continuing to read manga from a different page from the first and there is no cache for the chapter,
-then start downloading from the current page instead of page 1.
+then start downloading from the current page instead of page 1.\
+Show progress of manga in the history tab (current chapter out of total chapters).

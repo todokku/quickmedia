@@ -1,6 +1,7 @@
 #include "../include/Storage.hpp"
 #include "../include/env.hpp"
 #include <stdio.h>
+#include <assert.h>
 
 #if OS_FAMILY == OS_FAMILY_POSIX
 #include <pwd.h>
@@ -88,6 +89,7 @@ namespace QuickMedia {
     }
 
     int file_get_content(const Path &path, std::string &result) {
+        assert(get_file_type(path) == FileType::REGULAR);
         FILE *file = fopen(path.data.c_str(), "rb");
         if(!file)
             return -errno;
@@ -121,5 +123,12 @@ namespace QuickMedia {
         if(fd == -1)
             return errno;
         return close(fd);
+    }
+
+    void for_files_in_dir(const Path &path, FileIteratorCallback callback) {
+        for(auto &p : std::filesystem::directory_iterator(path.data)) {
+            if(!callback(p.path()))
+                break;
+        }
     }
 }

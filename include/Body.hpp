@@ -44,7 +44,8 @@ namespace QuickMedia {
         static bool string_find_case_insensitive(const std::string &str, const std::string &substr);
 
         // TODO: Make this actually fuzzy... Right now it's just a case insensitive string find.
-        // TODO: Highlight the part of the text that matches the search
+        // TODO: Highlight the part of the text that matches the search.
+        // TODO: Ignore dot, whitespace and special characters
         void filter_search_fuzzy(const std::string &text);
 
         sf::Text title_text;

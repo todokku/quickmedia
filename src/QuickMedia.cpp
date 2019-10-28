@@ -22,7 +22,6 @@
 #include <X11/Xatom.h>
 #include <signal.h>
 
-const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(30, 32, 34);
 const int DOUBLE_CLICK_TIME = 500;
 
@@ -70,16 +69,16 @@ namespace QuickMedia {
         delete current_plugin;
     }
 
-    static SearchResult search_selected_suggestion(Body *body, Plugin *plugin, std::string &selected_title, std::string &selected_url) {
-        BodyItem *selected_item = body->get_selected();
+    static SearchResult search_selected_suggestion(Body *input_body, Body *output_body, Plugin *plugin, std::string &selected_title, std::string &selected_url) {
+        BodyItem *selected_item = input_body->get_selected();
         if(!selected_item)
             return SearchResult::ERR;
 
         selected_title = selected_item->title;
         selected_url = selected_item->url;
-        body->clear_items();
-        SearchResult search_result = plugin->search(!selected_url.empty() ? selected_url : selected_title, body->items);
-        body->reset_selected();
+        output_body->clear_items();
+        SearchResult search_result = plugin->search(!selected_url.empty() ? selected_url : selected_title, output_body->items);
+        output_body->reset_selected();
         return search_result;
     }
 
@@ -219,7 +218,7 @@ namespace QuickMedia {
         return 0;
     }
 
-    void Program::base_event_handler(sf::Event &event, Page previous_page) {
+    void Program::base_event_handler(sf::Event &event, Page previous_page, bool handle_keypress) {
         if (event.type == sf::Event::Closed) {
             current_page = Page::EXIT;
         } else if(event.type == sf::Event::Resized) {
@@ -227,7 +226,7 @@ namespace QuickMedia {
             window_size.y = event.size.height;
             sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
             window.setView(sf::View(visible_area));
-        } else if(event.type == sf::Event::KeyPressed) {
+        } else if(handle_keypress && event.type == sf::Event::KeyPressed) {
             if(event.key.code == sf::Keyboard::Up) {
                 body->select_previous_item();
             } else if(event.key.code == sf::Keyboard::Down) {
@@ -272,20 +271,24 @@ namespace QuickMedia {
         return cppcodec::base64_rfc4648::encode(data);
     }
 
-    static bool get_manga_storage_json(const Path &storage_path, Json::Value &result) {
+    static std::string base64_decode(const std::string &data) {
+        return cppcodec::base64_rfc4648::decode<std::string>(data);
+    }
+
+    static bool read_file_as_json(const Path &storage_path, Json::Value &result) {
         std::string file_content;
         if(file_get_content(storage_path, file_content) != 0)
-            return -1;
+            return false;
 
         Json::CharReaderBuilder json_builder;
         std::unique_ptr<Json::CharReader> json_reader(json_builder.newCharReader());
         std::string json_errors;
-        if(json_reader->parse(&file_content.front(), &file_content.back(), &result, &json_errors)) {
+        if(!json_reader->parse(file_content.data(), file_content.data() + file_content.size(), &result, &json_errors)) {
             fprintf(stderr, "Failed to read json, error: %s\n", json_errors.c_str());
-            return -1;
+            return false;
         }
 
-        return 0;
+        return true;
     }
 
     static bool save_manga_progress_json(const Path &path, const Json::Value &json) {
@@ -295,9 +298,7 @@ namespace QuickMedia {
 
     static bool manga_extract_id_from_url(const std::string &url, std::string &manga_id) {
         bool manganelo_website = false;
-        if(url.find("mangakakalot") != std::string::npos)
-            manganelo_website = true;
-        else if(url.find("manganelo") != std::string::npos)
+        if(url.find("mangakakalot") != std::string::npos || url.find("manganelo") != std::string::npos)
             manganelo_website = true;
 
         if(manganelo_website) {
@@ -328,16 +329,66 @@ namespace QuickMedia {
         }
     }
 
+    enum class SearchSuggestionTab {
+        ALL,
+        HISTORY
+    };
+
     void Program::search_suggestion_page() {
         std::string update_search_text;
         bool search_running = false;
-        search_bar->onTextUpdateCallback = [&update_search_text](const std::string &text) {
-            update_search_text = text;
+
+        Body history_body(this, font);
+        const float tab_text_size = 18.0f;
+        const float tab_height = tab_text_size + 10.0f;
+        sf::Text all_tab_text("All", font, tab_text_size);
+        sf::Text history_tab_text("History", font, tab_text_size);
+
+        struct Tab {
+            Body *body;
+            SearchSuggestionTab tab;
+            sf::Text *text;
         };
 
-        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+        std::array<Tab, 2> tabs = { Tab{body, SearchSuggestionTab::ALL, &all_tab_text}, Tab{&history_body, SearchSuggestionTab::HISTORY, &history_tab_text} };
+        int selected_tab = 0;
+
+        // TOOD: Make generic, instead of checking for plugin
+        if(current_plugin->name == "manganelo") {
+            // TODO: Make asynchronous
+            for_files_in_dir(get_storage_dir().join("manga"), [&history_body](const std::filesystem::path &filepath) {
+                Path fullpath(filepath.c_str());
+                Json::Value body;
+                if(!read_file_as_json(fullpath, body)) {
+                    fprintf(stderr, "Failed to read json file: %s\n", fullpath.data.c_str());
+                    return true;
+                }
+
+                auto filename = filepath.filename();
+                const Json::Value &manga_name = body["name"];
+                if(!filename.empty() && manga_name.isString()) {
+                    // TODO: Add thumbnail
+                    auto body_item = std::make_unique<BodyItem>(manga_name.asString());
+                    body_item->url = "https://manganelo.com/manga/" + base64_decode(filename.string());
+                    history_body.items.push_back(std::move(body_item));
+                }
+                return true;
+            });
+        }
+
+        search_bar->onTextUpdateCallback = [&update_search_text, this, &tabs, &selected_tab](const std::string &text) {
+            if(tabs[selected_tab].body == body)
+                update_search_text = text;
+            else {
+                tabs[selected_tab].body->filter_search_fuzzy(text);
+                tabs[selected_tab].body->selected_item = 0;
+            }
+        };
+
+        search_bar->onTextSubmitCallback = [this, &tabs, &selected_tab](const std::string &text) -> bool {
             Page next_page = current_plugin->get_page_after_search();
-            if(search_selected_suggestion(body, current_plugin, content_title, content_url) != SearchResult::OK)
+            // TODO: This shouldn't be done if search_selected_suggestion fails
+            if(search_selected_suggestion(tabs[selected_tab].body, body, current_plugin, content_title, content_url) != SearchResult::OK)
                 return false;
 
             if(next_page == Page::EPISODE_LIST) {
@@ -362,7 +413,7 @@ namespace QuickMedia {
                 content_storage_json["name"] = content_title;
                 FileType file_type = get_file_type(content_storage_file);
                 if(file_type == FileType::REGULAR)
-                    get_manga_storage_json(content_storage_file, content_storage_json);
+                    read_file_as_json(content_storage_file, content_storage_json);
             } else if(next_page == Page::VIDEO_CONTENT) {
                 watched_videos.clear();
                 if(content_url.empty())
@@ -381,26 +432,46 @@ namespace QuickMedia {
         sf::Vector2f body_size;
         bool resized = true;
         sf::Event event;
+        
+        const sf::Color tab_selected_color(0, 85, 119);
+        const sf::Color tab_unselected_color(43, 45, 47);
+        sf::RectangleShape tab_spacing_rect(sf::Vector2f(0.0f, 0.0f));
+        tab_spacing_rect.setFillColor(tab_unselected_color);
+        const float tab_spacer_height = 1.0f;
 
         while (current_page == Page::SEARCH_SUGGESTION) {
             while (window.pollEvent(event)) {
-                base_event_handler(event, Page::EXIT);
+                base_event_handler(event, Page::EXIT, false);
                 if(event.type == sf::Event::Resized)
                     resized = true;
+                else if(event.type == sf::Event::KeyPressed) {
+                    if(event.key.code == sf::Keyboard::Up) {
+                        tabs[selected_tab].body->select_previous_item();
+                    } else if(event.key.code == sf::Keyboard::Down) {
+                        tabs[selected_tab].body->select_next_item();
+                    } else if(event.key.code == sf::Keyboard::Escape) {
+                        current_page = Page::EXIT;
+                    } else if(event.key.code == sf::Keyboard::Left) {
+                        selected_tab = std::max(0, selected_tab - 1);
+                    } else if(event.key.code == sf::Keyboard::Right) {
+                        selected_tab = std::min((int)tabs.size() - 1, selected_tab + 1);
+                    }
+                }
             }
 
             if(resized) {
+                resized = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
-                float body_padding_vertical = 50.0f;
+                float body_padding_vertical = tab_spacer_height + tab_height + 50.0f;
                 float body_width = window_size.x - body_padding_horizontal * 2.0f;
                 if(body_width < 400) {
                     body_width = window_size.x;
                     body_padding_horizontal = 0.0f;
                 }
 
-                float search_bottom = search_bar->getBottom();
+                float search_bottom = search_bar->getBottomWithoutShadow();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
                 body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
             }
@@ -428,8 +499,30 @@ namespace QuickMedia {
             }
 
             window.clear(back_color);
-            body->draw(window, body_pos, body_size);
-            search_bar->draw(window);
+            {
+                tab_spacing_rect.setPosition(0.0f, search_bar->getBottomWithoutShadow());
+                tab_spacing_rect.setSize(sf::Vector2f(window_size.x, tab_spacer_height));
+                window.draw(tab_spacing_rect);
+                const float width_per_tab = window_size.x / tabs.size();
+                const float tab_y = tab_spacer_height + std::floor(search_bar->getBottomWithoutShadow() + tab_height * 0.5f - (tab_text_size + 5.0f) * 0.5f);
+                sf::RectangleShape tab_background(sf::Vector2f(std::floor(width_per_tab), tab_height));
+                int i = 0;
+                for(Tab &tab : tabs) {
+                    if(i == selected_tab)
+                        tab_background.setFillColor(tab_selected_color);
+                    else
+                        tab_background.setFillColor(tab_unselected_color);
+                    tab_background.setPosition(std::floor(i * width_per_tab), tab_spacer_height + std::floor(search_bar->getBottomWithoutShadow()));
+                    window.draw(tab_background);
+                    const float center = (i * width_per_tab) + (width_per_tab * 0.5f);
+                    tab.text->setPosition(std::floor(center - tab.text->getLocalBounds().width * 0.5f), tab_y);
+                    window.draw(*tab.text);
+                    if(i == selected_tab)
+                        tab.body->draw(window, body_pos, body_size);
+                    ++i;
+                }
+            }
+            search_bar->draw(window, false);
             window.display();
         }
     }
@@ -461,6 +554,7 @@ namespace QuickMedia {
             }
 
             if(resized) {
+                resized = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -816,6 +910,7 @@ namespace QuickMedia {
 
             // TODO: This code is duplicated in many places. Handle it in one place.
             if(resized) {
+                resized = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -1091,6 +1186,7 @@ namespace QuickMedia {
             content_size.y = window_size.y - background_height;
 
             if(resized) {
+                resized = false;
                 if(error) {
                     auto bounds = error_message.getLocalBounds();
                     error_message.setPosition(std::floor(content_size.x * 0.5f - bounds.width * 0.5f), std::floor(content_size.y * 0.5f - bounds.height));
@@ -1163,6 +1259,7 @@ namespace QuickMedia {
 
             // TODO: This code is duplicated in many places. Handle it in one place.
             if(resized) {
+                resized = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -1222,6 +1319,7 @@ namespace QuickMedia {
 
             // TODO: This code is duplicated in many places. Handle it in one place.
             if(resized) {
+                resized = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
