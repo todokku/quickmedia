@@ -437,7 +437,10 @@ namespace QuickMedia {
         const sf::Color tab_unselected_color(43, 45, 47);
         sf::RectangleShape tab_spacing_rect(sf::Vector2f(0.0f, 0.0f));
         tab_spacing_rect.setFillColor(tab_unselected_color);
-        const float tab_spacer_height = 1.0f;
+        const float tab_spacer_height = 0.0f;
+
+        sf::RectangleShape tab_drop_shadow;
+        tab_drop_shadow.setFillColor(sf::Color(23, 25, 27));
 
         while (current_page == Page::SEARCH_SUGGESTION) {
             while (window.pollEvent(event)) {
@@ -503,6 +506,11 @@ namespace QuickMedia {
                 tab_spacing_rect.setPosition(0.0f, search_bar->getBottomWithoutShadow());
                 tab_spacing_rect.setSize(sf::Vector2f(window_size.x, tab_spacer_height));
                 window.draw(tab_spacing_rect);
+
+                tab_drop_shadow.setSize(sf::Vector2f(window_size.x, 5.0f));
+                tab_drop_shadow.setPosition(0.0f, std::floor(search_bar->getBottomWithoutShadow() + tab_height));
+                window.draw(tab_drop_shadow);
+
                 const float width_per_tab = window_size.x / tabs.size();
                 const float tab_y = tab_spacer_height + std::floor(search_bar->getBottomWithoutShadow() + tab_height * 0.5f - (tab_text_size + 5.0f) * 0.5f);
                 sf::RectangleShape tab_background(sf::Vector2f(std::floor(width_per_tab), tab_height));
