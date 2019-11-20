@@ -1,6 +1,8 @@
 # QuickMedia
 Native clients of websites with fast access to what you want to see, **with TOR support**. See [old video demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
-Currently supported websites: `youtube`, `manganelo` and _others_. **Note:** Manganelo doesn't work when used with TOR.\
+Currently supported websites: `youtube`, `manganelo` and _others_.\
+**Note:** Manganelo doesn't work when used with TOR.\
+**Note:** TOR system service needs to be running (`systemctl start tor.service`).\
 Here is an example with YouTube:\
 ![QuickMedia Youtube Picture](QuickMediaYoutube.png)\
 Config data, including manga progress is stored under `$HOME/.config/quickmedia`

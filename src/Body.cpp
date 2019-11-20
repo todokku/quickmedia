@@ -222,7 +222,7 @@ namespace QuickMedia {
                     image.setPosition(item_pos);
                     window.draw(image);
                     text_offset_x = width_ratio * image_size.x;
-                } else {
+                } else if(!item->thumbnail_url.empty()) {
                     image_fallback.setPosition(item_pos);
                     window.draw(image_fallback);
                     text_offset_x = image_fallback.getSize().x;
