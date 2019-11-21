@@ -33,6 +33,8 @@ namespace QuickMedia {
 
         // Select next item, ignoring invisible items
         void select_next_item();
+        
+        void select_first_item();
         void reset_selected();
         void clear_items();
 

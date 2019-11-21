@@ -50,6 +50,11 @@ namespace QuickMedia {
         }
     }
 
+    void Body::select_first_item() {
+        selected_item = 0;
+        clamp_selection();
+    }
+
     void Body::reset_selected() {
         selected_item = 0;
     }

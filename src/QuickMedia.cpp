@@ -381,7 +381,7 @@ namespace QuickMedia {
                 update_search_text = text;
             else {
                 tabs[selected_tab].body->filter_search_fuzzy(text);
-                tabs[selected_tab].body->selected_item = 0;
+                tabs[selected_tab].body->clamp_selection();
             }
         };
 
@@ -456,8 +456,10 @@ namespace QuickMedia {
                         current_page = Page::EXIT;
                     } else if(event.key.code == sf::Keyboard::Left) {
                         selected_tab = std::max(0, selected_tab - 1);
+                        search_bar->clear();
                     } else if(event.key.code == sf::Keyboard::Right) {
                         selected_tab = std::min((int)tabs.size() - 1, selected_tab + 1);
+                        search_bar->clear();
                     }
                 }
             }
@@ -540,7 +542,7 @@ namespace QuickMedia {
         #if 0
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->selected_item = 0;
+            body->sele
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
@@ -880,7 +882,7 @@ namespace QuickMedia {
     void Program::episode_list_page() {
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->selected_item = 0;
+            body->select_first_item();
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
@@ -1238,7 +1240,7 @@ namespace QuickMedia {
 
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->selected_item = 0;
+            body->select_first_item();
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
