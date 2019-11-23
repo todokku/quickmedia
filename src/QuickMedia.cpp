@@ -160,7 +160,7 @@ namespace QuickMedia {
                 fprintf(stderr, "Failed to load plugin logo, path: %s\n", plugin_logo_path.c_str());
                 return -2;
             }
-            plugin_logo.generateMipmap();
+            //plugin_logo.generateMipmap();
             plugin_logo.setSmooth(true);
         }
 
@@ -430,7 +430,7 @@ namespace QuickMedia {
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
         
         const sf::Color tab_selected_color(0, 85, 119);
@@ -445,8 +445,8 @@ namespace QuickMedia {
         while (current_page == Page::SEARCH_SUGGESTION) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::EXIT, false);
-                if(event.type == sf::Event::Resized)
-                    resized = true;
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
                 else if(event.type == sf::Event::KeyPressed) {
                     if(event.key.code == sf::Keyboard::Up) {
                         tabs[selected_tab].body->select_previous_item();
@@ -464,8 +464,8 @@ namespace QuickMedia {
                 }
             }
 
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -542,7 +542,7 @@ namespace QuickMedia {
         #if 0
         search_bar->onTextUpdateCallback = [this](const std::string &text) {
             body->filter_search_fuzzy(text);
-            body->sele
+            body->clamp_selection();
         };
 
         search_bar->onTextSubmitCallback = [this](const std::string &text) {
@@ -555,16 +555,18 @@ namespace QuickMedia {
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
 
         while (current_page == Page::SEARCH_RESULT) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
             }
 
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -898,14 +900,14 @@ namespace QuickMedia {
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
 
         while (current_page == Page::EPISODE_LIST) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
-                if(event.type == sf::Event::Resized)
-                    resized = true;
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
                 else if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::T && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
                     BodyItem *selected_item = body->get_selected();
                     if(selected_item) {
@@ -919,8 +921,8 @@ namespace QuickMedia {
             }
 
             // TODO: This code is duplicated in many places. Handle it in one place.
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -945,6 +947,8 @@ namespace QuickMedia {
         }
     }
 
+    // TODO: Optimize this somehow. One image alone uses more than 20mb ram! Total ram usage for viewing one image
+    // becomes 40mb (private memory, almost 100mb in total!) Unacceptable!
     Program::LoadImageResult Program::load_image_by_index(int image_index, sf::Texture &image_texture, sf::String &error_message) {
         Path image_path = content_cache_dir;
         image_path.join(std::to_string(image_index + 1));
@@ -955,7 +959,7 @@ namespace QuickMedia {
             if(file_get_content(image_path, image_data) == 0) {
                 if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
                     image_texture.setSmooth(true);
-                    image_texture.generateMipmap();
+                    //image_texture.generateMipmap();
                     return LoadImageResult::OK;
                 } else {
                     error_message = std::string("Failed to load image for page ") + std::to_string(image_index + 1);
@@ -1051,27 +1055,6 @@ namespace QuickMedia {
         }
         download_chapter_images_if_needed(image_plugin);
 
-        // TODO: Optimize this somehow. One image alone uses more than 20mb ram! Total ram usage for viewing one image
-        // becomes 40mb (private memory, almost 100mb in total!) Unacceptable!
-        #if 0
-        ImageResult image_result = image_plugin->get_image_by_index(images_url, image_index, image_data);
-        if(image_result == ImageResult::OK) {
-            if(image_texture.loadFromMemory(image_data.data(), image_data.size())) {
-                image_texture.setSmooth(true);
-                image_texture.generateMipmap();
-                image.setTexture(image_texture, true);
-            } else {
-                error_message.setString(std::string("Failed to load image for page ") + std::to_string(image_index + 1));
-            }
-        } else if(image_result == ImageResult::END) {
-            error_message.setString("End of " + chapter_title);
-        } else {
-            // TODO: Convert ImageResult error to a string and show to user
-            error_message.setString(std::string("Network error, failed to get image for page ") + std::to_string(image_index + 1));
-        }
-        image_data.resize(0);
-        #endif
-
         int num_images = 0;
         image_plugin->get_number_of_images(images_url, num_images);
         image_index = std::min(image_index, num_images);
@@ -1112,7 +1095,7 @@ namespace QuickMedia {
         }
 
         bool error = !error_message.getString().isEmpty();
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
 
         sf::Text chapter_text(chapter_title + " | Page " + std::to_string(image_index + 1) + "/" + std::to_string(num_images), font, 14);
@@ -1142,7 +1125,9 @@ namespace QuickMedia {
                     window_size.y = event.size.height;
                     sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
                     window.setView(sf::View(visible_area));
-                    resized = true;
+                    redraw = true;
+                } else if(event.type == sf::Event::GainedFocus) {
+                    redraw = true;
                 } else if(event.type == sf::Event::KeyPressed) {
                     if(event.key.code == sf::Keyboard::Up) {
                         if(image_index > 0) {
@@ -1184,7 +1169,7 @@ namespace QuickMedia {
                     download_in_progress = false;
                 }
                 error_message.setString(error_msg);
-                resized = true;
+                redraw = true;
                 check_downloaded_timer.restart();
             }
 
@@ -1195,8 +1180,8 @@ namespace QuickMedia {
             content_size.x = window_size.x;
             content_size.y = window_size.y - background_height;
 
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 if(error) {
                     auto bounds = error_message.getLocalBounds();
                     error_message.setPosition(std::floor(content_size.x * 0.5f - bounds.width * 0.5f), std::floor(content_size.y * 0.5f - bounds.height));
@@ -1257,19 +1242,19 @@ namespace QuickMedia {
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
 
         while (current_page == Page::CONTENT_LIST) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
-                if(event.type == sf::Event::Resized)
-                    resized = true;
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
             }
 
             // TODO: This code is duplicated in many places. Handle it in one place.
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
@@ -1317,19 +1302,19 @@ namespace QuickMedia {
 
         sf::Vector2f body_pos;
         sf::Vector2f body_size;
-        bool resized = true;
+        bool redraw = true;
         sf::Event event;
 
         while (current_page == Page::CONTENT_DETAILS) {
             while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
-                if(event.type == sf::Event::Resized)
-                    resized = true;
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
             }
 
             // TODO: This code is duplicated in many places. Handle it in one place.
-            if(resized) {
-                resized = false;
+            if(redraw) {
+                redraw = false;
                 search_bar->onWindowResize(window_size);
 
                 float body_padding_horizontal = 50.0f;
