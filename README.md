@@ -55,4 +55,5 @@ then start downloading from the current page instead of page 1.\
 Show progress of manga in the history tab (current chapter out of total chapters).\
 Animate page navigation.\
 Properly format text in items. For example for 4chan. The size of the item should also change.\
-Show list of replies to a comment (for image boards).
+Show list of replies to a comment (for image boards).\
+Wrap text that is too long.

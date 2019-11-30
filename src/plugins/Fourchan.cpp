@@ -358,7 +358,7 @@ namespace QuickMedia {
             TEXT,
             QUOTE, // >
             QUOTELINK, // >>POSTNO,
-            LINEBREAK
+            LINE_CONTINUE
         };
 
         DataView text; // Set when type is TEXT, QUOTE or QUOTELINK
@@ -385,8 +385,14 @@ namespace QuickMedia {
     using CommentPieceCallback = std::function<void(const CommentPiece&)>;
     static void extract_comment_pieces(TidyDoc doc, TidyNode node, CommentPieceCallback callback) {
         for(TidyNode child = tidyGetChild(node); child; child = tidyGetNext(child)) {
-            //extract_comment_pieces(doc, child, callback);
             const char *node_name = tidyNodeGetName(child);
+            if(node_name && strcmp(node_name, "wbr") == 0) {
+                CommentPiece comment_piece;
+                comment_piece.type = CommentPiece::Type::LINE_CONTINUE;
+                comment_piece.text = { (char*)"", 0 };
+                callback(comment_piece);
+                continue;
+            }
             TidyNodeType node_type = tidyNodeGetType(child);
             if(node_type == TidyNode_Start && node_name) {
                 TidyNode text_node = tidyGetChild(child);
@@ -412,12 +418,6 @@ namespace QuickMedia {
                                 comment_piece.quote_postnumber = strtoll(a_href + 2, nullptr, 10);
                             }
                         }
-                        /*
-                        for(size_t i = 0; i < comment_piece.text.size; ++i) {
-                            if(comment_piece.text.data[i] == '\n')
-                                comment_piece.text.data[i] = ' ';
-                        }
-                        */
                         callback(comment_piece);
                     }
                     tidyBufFree(&tidy_buffer);
@@ -429,12 +429,6 @@ namespace QuickMedia {
                     CommentPiece comment_piece;
                     comment_piece.type = CommentPiece::Type::TEXT;
                     comment_piece.text = { (char*)tidy_buffer.bp, tidy_buffer.size };
-                    /*
-                    for(size_t i = 0; i < comment_piece.text.size; ++i) {
-                        if(comment_piece.text.data[i] == '\n')
-                            comment_piece.text.data[i] = ' ';
-                    }
-                    */
                     callback(comment_piece);
                 }
                 tidyBufFree(&tidy_buffer);
@@ -444,7 +438,8 @@ namespace QuickMedia {
 
     static void extract_comment_pieces(const char *html_source, size_t size, CommentPieceCallback callback) {
         TidyDoc doc = tidyCreate();
-        tidyOptSetBool(doc, TidyShowWarnings, no);
+        for(int i = 0; i < N_TIDY_OPTIONS; ++i)
+            tidyOptSetBool(doc, (TidyOptionId)i, no);
         if(tidyParseString(doc, html_source) < 0) {
             CommentPiece comment_piece;
             comment_piece.type = CommentPiece::Type::TEXT;
@@ -509,9 +504,12 @@ namespace QuickMedia {
                                     comment_text.append(cp.text.data, cp.text.size);
                                     break;
                                 }
-                                case CommentPiece::Type::LINEBREAK:
-                                //    comment_text += '\n';
+                                case CommentPiece::Type::LINE_CONTINUE: {
+                                    if(!comment_text.empty() && comment_text.back() == '\n') {
+                                        comment_text.pop_back();
+                                    }
                                     break;
+                                }
                             }
                         }
                     );
@@ -609,9 +607,12 @@ namespace QuickMedia {
                                 }
                                 break;
                             }
-                            case CommentPiece::Type::LINEBREAK:
-                            //    comment_text += '\n';
+                            case CommentPiece::Type::LINE_CONTINUE: {
+                                if(!comment_text.empty() && comment_text.back() == '\n') {
+                                    comment_text.pop_back();
+                                }
                                 break;
+                            }
                         }
                     }
                 );

@@ -67,8 +67,9 @@ namespace QuickMedia {
     }
 
     void html_unescape_sequences(std::string &str) {
-        const std::array<HtmlEscapeSequence, 5> escape_sequences = {
+        const std::array<HtmlEscapeSequence, 6> escape_sequences = {
             HtmlEscapeSequence { "&quot;", "\"" },
+            HtmlEscapeSequence { "&#039;", "'" },
             HtmlEscapeSequence { "&#39;", "'" },
             HtmlEscapeSequence { "&lt;", "<" },
             HtmlEscapeSequence { "&gt;", ">" },
