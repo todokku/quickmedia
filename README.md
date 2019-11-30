@@ -1,6 +1,6 @@
 # QuickMedia
-Native clients of websites with fast access to what you want to see, **with TOR support**. See [old video demo with manga](https://beta.lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
-Currently supported websites: `youtube`, `manganelo` and _others_.\
+Native clients of websites with fast access to what you want to see, **with TOR support**. See [old video demo with manga](https://lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
+Currently supported websites: `youtube`, `manganelo`, `4chan` and _others_.\
 **Note:** Manganelo doesn't work when used with TOR.\
 **Note:** TOR system service needs to be running (`systemctl start tor.service`).\
 Here is an example with YouTube:\
@@ -10,7 +10,7 @@ Config data, including manga progress is stored under `$HOME/.config/quickmedia`
 ```
 usage: QuickMedia <plugin> [--tor]
 OPTIONS:
-plugin    The plugin to use. Should be either 4chan, manganelo, pornhub or youtube
+plugin    The plugin to use. Should be either 4chan, manganelo or youtube
 --tor     Use tor. Disabled by default
 EXAMPLES:
 QuickMedia manganelo
@@ -18,9 +18,11 @@ QuickMedia youtube --tor
 ```
 ## Controls
 Press `arrow up` and `arrow down` to navigate the menu and also to go to the previous/next image when viewing manga.\
+Press `Return` (aka `Enter`) to select the item.\
 Press `ESC` to go back to the previous menu.\
 Press `Ctrl + T` when hovering over a manga chapter to start tracking manga after that chapter. This only works if AutoMedia is installed and
-accessible in PATH environment variable.
+accessible in PATH environment variable.\
+Press `Backspace` to return to the preview item when reading replies in image board threads.
 ## Video controls
 Press `space` to pause/unpause video. `Double-click` video to fullscreen or leave fullscreen.
 # Dependencies
@@ -50,4 +52,7 @@ Somehow deal with youtube banning ip when searching too often.\
 Optimize shadow rendering for items (Right now they fill too much space that is behind items). It should also be a blurry shadow.\
 When continuing to read manga from a different page from the first and there is no cache for the chapter,
 then start downloading from the current page instead of page 1.\
-Show progress of manga in the history tab (current chapter out of total chapters).
+Show progress of manga in the history tab (current chapter out of total chapters).\
+Animate page navigation.\
+Properly format text in items. For example for 4chan. The size of the item should also change.\
+Show list of replies to a comment (for image boards).

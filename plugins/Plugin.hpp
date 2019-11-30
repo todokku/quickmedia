@@ -52,6 +52,8 @@ namespace QuickMedia {
         Plugin(const std::string &name) : name(name) {}
         virtual ~Plugin() = default;
 
+        virtual bool is_image_board() { return false; }
+
         virtual PluginResult get_front_page(BodyItems &result_items) {
             (void)result_items; return PluginResult::OK;
         }

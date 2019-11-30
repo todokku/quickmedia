@@ -1,6 +1,7 @@
 #include "../../plugins/Fourchan.hpp"
 #include <json/reader.h>
 #include <string.h>
+#include "../../include/DataView.hpp"
 #include <tidy.h>
 #include <tidybuffio.h>
 
@@ -348,11 +349,115 @@ namespace QuickMedia {
     }
 
     static bool string_ends_with(const std::string &str, const std::string &ends_with_str) {
-        size_t len = ends_with_str.size();
-        return len == 0 || (str.size() >= len && memcmp(&str[str.size() - len], ends_with_str.data(), len) == 0);
+        size_t ends_len = ends_with_str.size();
+        return ends_len == 0 || (str.size() >= ends_len && memcmp(&str[str.size() - ends_len], ends_with_str.data(), ends_len) == 0);
     }
 
-    PluginResult Fourchan::get_content_list(const std::string &url, BodyItems &result_items) {
+    struct CommentPiece {
+        enum class Type {
+            TEXT,
+            QUOTE, // >
+            QUOTELINK, // >>POSTNO,
+            LINEBREAK
+        };
+
+        DataView text; // Set when type is TEXT, QUOTE or QUOTELINK
+        int64_t quote_postnumber; // Set when type is QUOTELINK
+        Type type;
+    };
+
+    static TidyAttr get_attribute_by_name(TidyNode node, const char *name) {
+        for(TidyAttr attr = tidyAttrFirst(node); attr; attr = tidyAttrNext(attr)) {
+            const char *attr_name = tidyAttrName(attr);
+            if(attr_name && strcmp(name, attr_name) == 0)
+                return attr;
+        }
+        return nullptr;
+    }
+
+    static const char* get_attribute_value(TidyNode node, const char *name) {
+        TidyAttr attr = get_attribute_by_name(node, name);
+        if(attr)
+            return tidyAttrValue(attr);
+        return nullptr;
+    }
+
+    using CommentPieceCallback = std::function<void(const CommentPiece&)>;
+    static void extract_comment_pieces(TidyDoc doc, TidyNode node, CommentPieceCallback callback) {
+        for(TidyNode child = tidyGetChild(node); child; child = tidyGetNext(child)) {
+            //extract_comment_pieces(doc, child, callback);
+            const char *node_name = tidyNodeGetName(child);
+            TidyNodeType node_type = tidyNodeGetType(child);
+            if(node_type == TidyNode_Start && node_name) {
+                TidyNode text_node = tidyGetChild(child);
+                //fprintf(stderr, "Child node name: %s, child text type: %d\n", node_name, tidyNodeGetType(text_node));
+                if(tidyNodeGetType(text_node) == TidyNode_Text) {
+                    TidyBuffer tidy_buffer;
+                    tidyBufInit(&tidy_buffer);
+                    if(tidyNodeGetText(doc, text_node, &tidy_buffer)) {
+                        CommentPiece comment_piece;
+                        comment_piece.type = CommentPiece::Type::TEXT;
+                        comment_piece.text = { (char*)tidy_buffer.bp, tidy_buffer.size };
+                        if(strcmp(node_name, "span") == 0) {
+                            const char *span_class = get_attribute_value(child, "class");
+                            //fprintf(stderr, "span class: %s\n", span_class);
+                            if(span_class && strcmp(span_class, "quote") == 0)
+                                comment_piece.type = CommentPiece::Type::QUOTE;
+                        } else if(strcmp(node_name, "a") == 0) {
+                            const char *a_class = get_attribute_value(child, "class");
+                            const char *a_href = get_attribute_value(child, "href");
+                            //fprintf(stderr, "a class: %s, href: %s\n", a_class, a_href);
+                            if(a_class && a_href && strcmp(a_class, "quotelink") == 0 && strncmp(a_href, "#p", 2) == 0) {
+                                comment_piece.type = CommentPiece::Type::QUOTELINK;
+                                comment_piece.quote_postnumber = strtoll(a_href + 2, nullptr, 10);
+                            }
+                        }
+                        /*
+                        for(size_t i = 0; i < comment_piece.text.size; ++i) {
+                            if(comment_piece.text.data[i] == '\n')
+                                comment_piece.text.data[i] = ' ';
+                        }
+                        */
+                        callback(comment_piece);
+                    }
+                    tidyBufFree(&tidy_buffer);
+                }
+            } else if(node_type == TidyNode_Text) {
+                TidyBuffer tidy_buffer;
+                tidyBufInit(&tidy_buffer);
+                if(tidyNodeGetText(doc, child, &tidy_buffer)) {
+                    CommentPiece comment_piece;
+                    comment_piece.type = CommentPiece::Type::TEXT;
+                    comment_piece.text = { (char*)tidy_buffer.bp, tidy_buffer.size };
+                    /*
+                    for(size_t i = 0; i < comment_piece.text.size; ++i) {
+                        if(comment_piece.text.data[i] == '\n')
+                            comment_piece.text.data[i] = ' ';
+                    }
+                    */
+                    callback(comment_piece);
+                }
+                tidyBufFree(&tidy_buffer);
+            }
+        }
+    }
+
+    static void extract_comment_pieces(const char *html_source, size_t size, CommentPieceCallback callback) {
+        TidyDoc doc = tidyCreate();
+        tidyOptSetBool(doc, TidyShowWarnings, no);
+        if(tidyParseString(doc, html_source) < 0) {
+            CommentPiece comment_piece;
+            comment_piece.type = CommentPiece::Type::TEXT;
+            // Warning: Cast from const char* to char* ...
+            comment_piece.text = { (char*)html_source, size };
+            callback(comment_piece);
+        } else {
+            extract_comment_pieces(doc, tidyGetBody(doc), std::move(callback));
+        }
+        tidyRelease(doc);
+    }
+
+    PluginResult Fourchan::get_threads(const std::string &url, BodyItems &result_items) {
         std::string server_response;
         if(download_to_string(fourchan_url + url + "/catalog.json", server_response) != DownloadResult::OK)
             return PluginResult::NET_ERR;
@@ -380,14 +485,38 @@ namespace QuickMedia {
                         continue;
 
                     const Json::Value &com = thread["com"];
-                    if(!com.isString())
-                        continue;
+                    const char *comment_begin = "";
+                    const char *comment_end = comment_begin;
+                    com.getString(&comment_begin, &comment_end);
 
                     const Json::Value &thread_num = thread["no"];
                     if(!thread_num.isNumeric())
                         continue;
 
-                    auto body_item = std::make_unique<BodyItem>(com.asString());
+                    std::string comment_text;
+                    extract_comment_pieces(comment_begin, comment_end - comment_begin,
+                        [&comment_text](const CommentPiece &cp) {
+                            switch(cp.type) {
+                                case CommentPiece::Type::TEXT:
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    break;
+                                case CommentPiece::Type::QUOTE:
+                                    comment_text += '>';
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    //comment_text += '\n';
+                                    break;
+                                case CommentPiece::Type::QUOTELINK: {
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    break;
+                                }
+                                case CommentPiece::Type::LINEBREAK:
+                                //    comment_text += '\n';
+                                    break;
+                            }
+                        }
+                    );
+                    html_unescape_sequences(comment_text);
+                    auto body_item = std::make_unique<BodyItem>(std::move(comment_text));
                     body_item->url = std::to_string(thread_num.asInt64());
 
                     const Json::Value &ext = thread["ext"];
@@ -411,95 +540,7 @@ namespace QuickMedia {
         return PluginResult::OK;
     }
 
-    struct CommentPiece {
-        enum class Type {
-            TEXT,
-            QUOTE, // >
-            QUOTELINK, // >>POSTNO,
-            LINEBREAK
-        };
-
-        std::string_view text; // Set when type is TEXT, QUOTE or QUOTELINK
-        int64_t quote_postnumber; // Set when type is QUOTELINK
-        Type type;
-    };
-
-    static TidyAttr get_attribute_by_name(TidyNode node, const char *name) {
-        for(TidyAttr attr = tidyAttrFirst(node); attr; attr = tidyAttrNext(attr)) {
-            const char *attr_name = tidyAttrName(attr);
-            if(attr_name && strcmp(name, attr_name) == 0)
-                return attr;
-        }
-        return nullptr;
-    }
-
-    static const char* get_attribute_value(TidyNode node, const char *name) {
-        TidyAttr attr = get_attribute_by_name(node, name);
-        if(attr)
-            return tidyAttrValue(attr);
-        return nullptr;
-    }
-
-    using CommentPieceCallback = std::function<void(const CommentPiece&)>;
-    static void extract_comment_pieces(TidyDoc doc, TidyNode node, CommentPieceCallback callback) {
-        const char *node_name = tidyNodeGetName(node);
-        printf("node name: %s\n", node_name ? node_name : "N/A");
-
-        TidyNodeType node_type = tidyNodeGetType(node);
-        if(node_type == TidyNode_Text) {
-            TidyBuffer tidy_buffer;
-            tidyBufInit(&tidy_buffer);
-            if(tidyNodeGetText(doc, node, &tidy_buffer)) {
-                CommentPiece comment_piece;
-                comment_piece.type = CommentPiece::Type::TEXT;
-                if(node_name) {
-                    if(strncmp("a", (const char*)tidy_buffer.bp, tidy_buffer.size) == 0) {
-                        const char *a_href = get_attribute_value(node, "href");
-                        if(a_href && strncmp(a_href, "#p", 2) == 0) {
-                            comment_piece.type = CommentPiece::Type::QUOTELINK;
-                            comment_piece.quote_postnumber = strtoll(a_href + 2, nullptr, 10);
-                        }
-                    } else if(strncmp("span", (const char*)tidy_buffer.bp, tidy_buffer.size) == 0) {
-                        const char *a_class = get_attribute_value(node, "class");
-                        if(a_class && strcmp(a_class, "quote") == 0) {
-                            comment_piece.type = CommentPiece::Type::QUOTE;
-                            comment_piece.text = { (const char*)tidy_buffer.bp, tidy_buffer.size };
-                        }
-                    }
-                }
-                printf("Comment piece value: %.*s\n", tidy_buffer.size, tidy_buffer.bp);
-                comment_piece.text = { (const char*)tidy_buffer.bp, tidy_buffer.size };
-                callback(comment_piece);
-            }
-            tidyBufFree(&tidy_buffer);
-        } else if(node_name) {
-            if(strcmp("br", node_name) == 0) {
-                CommentPiece comment_piece;
-                comment_piece.type = CommentPiece::Type::LINEBREAK;
-                callback(comment_piece);
-            }
-        }
-
-        for(TidyNode child = tidyGetChild(node); child; child = tidyGetNext(child)) {
-            extract_comment_pieces(doc, child, callback);
-        }
-    }
-
-    static void extract_comment_pieces(const char *html_source, size_t size, CommentPieceCallback callback) {
-        TidyDoc doc = tidyCreate();
-        tidyOptSetBool(doc, TidyShowWarnings, no);
-        if(tidyParseString(doc, html_source) < 0) {
-            CommentPiece comment_piece;
-            comment_piece.type = CommentPiece::Type::TEXT;
-            comment_piece.text = { html_source, size };
-            callback(comment_piece);
-        } else {
-            extract_comment_pieces(doc, tidyGetBody(doc), std::move(callback));
-        }
-        tidyRelease(doc);
-    }
-
-    PluginResult Fourchan::get_content_details(const std::string &list_url, const std::string &url, BodyItems &result_items) {
+    PluginResult Fourchan::get_thread_comments(const std::string &list_url, const std::string &url, BodyItems &result_items) {
         std::string server_response;
         if(download_to_string(fourchan_url + list_url + "/thread/" + url + ".json", server_response) != DownloadResult::OK)
             return PluginResult::NET_ERR;
@@ -513,43 +554,70 @@ namespace QuickMedia {
             return PluginResult::ERR;
         }
 
+        std::unordered_map<int64_t, size_t> comment_by_postno;
+
         const Json::Value &posts = json_root["posts"];
         if(posts.isArray()) {
             for(const Json::Value &post : posts) {
                 if(!post.isObject())
                     continue;
 
-                const Json::Value &com = post["com"];
-                const char *comment_begin;
-                const char *comment_end;
-                if(!com.getString(&comment_begin, &comment_end))
+                const Json::Value &post_num = post["no"];
+                if(!post_num.isNumeric())
                     continue;
+                
+                comment_by_postno[post_num.asInt64()] = result_items.size();
+                result_items.push_back(std::make_unique<BodyItem>(""));
+            }
+        }
+
+        size_t body_item_index = 0;
+        if(posts.isArray()) {
+            for(const Json::Value &post : posts) {
+                if(!post.isObject())
+                    continue;
+
+                const Json::Value &com = post["com"];
+                const char *comment_begin = "";
+                const char *comment_end = comment_begin;
+                com.getString(&comment_begin, &comment_end);
 
                 const Json::Value &post_num = post["no"];
                 if(!post_num.isNumeric())
                     continue;
 
                 std::string comment_text;
-                extract_comment_pieces(comment_begin, comment_end - comment_begin, [&comment_text](const CommentPiece &cp) {
-                    switch(cp.type) {
-                        case CommentPiece::Type::TEXT:
-                            comment_text += cp.text;
-                            break;
-                        case CommentPiece::Type::QUOTE:
-                            comment_text += '>';
-                            comment_text += cp.text;
-                            break;
-                        case CommentPiece::Type::QUOTELINK:
-                            comment_text += cp.text;
-                            break;
-                        case CommentPiece::Type::LINEBREAK:
-                        //    comment_text += '\n';
-                            break;
+                extract_comment_pieces(comment_begin, comment_end - comment_begin,
+                    [&comment_text, &comment_by_postno, &result_items, body_item_index](const CommentPiece &cp) {
+                        switch(cp.type) {
+                            case CommentPiece::Type::TEXT:
+                                comment_text.append(cp.text.data, cp.text.size);
+                                break;
+                            case CommentPiece::Type::QUOTE:
+                                comment_text += '>';
+                                comment_text.append(cp.text.data, cp.text.size);
+                                //comment_text += '\n';
+                                break;
+                            case CommentPiece::Type::QUOTELINK: {
+                                comment_text.append(cp.text.data, cp.text.size);
+                                auto it = comment_by_postno.find(cp.quote_postnumber);
+                                if(it == comment_by_postno.end()) {
+                                    // TODO: Link this quote to a 4chan archive that still has the quoted comment (if available)
+                                    comment_text += "(dead)";
+                                } else {
+                                    result_items[it->second]->replies.push_back(body_item_index);
+                                }
+                                break;
+                            }
+                            case CommentPiece::Type::LINEBREAK:
+                            //    comment_text += '\n';
+                                break;
+                        }
                     }
-                });
+                );
                 html_unescape_sequences(comment_text);
-                auto body_item = std::make_unique<BodyItem>(std::move(comment_text));
-                body_item->url = std::to_string(post_num.asInt64());
+                BodyItem *body_item = result_items[body_item_index].get();
+                body_item->title = std::move(comment_text);
 
                 const Json::Value &ext = post["ext"];
                 const Json::Value &tim = post["tim"];
@@ -564,7 +632,7 @@ namespace QuickMedia {
                     body_item->thumbnail_url = fourchan_image_url + list_url + "/" + std::to_string(tim.asInt64()) + "s.jpg";
                 }
                 
-                result_items.emplace_back(std::move(body_item));
+                ++body_item_index;
             }
         }
 

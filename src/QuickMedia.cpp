@@ -209,7 +209,18 @@ namespace QuickMedia {
                     content_details_page();
                     break;
                 }
+                case Page::IMAGE_BOARD_THREAD_LIST: {
+                    body->draw_thumbnails = true;
+                    image_board_thread_list_page();
+                    break;
+                }
+                case Page::IMAGE_BOARD_THREAD: {
+                    body->draw_thumbnails = true;
+                    image_board_thread_page();
+                    break;
+                }
                 default:
+                    fprintf(stderr, "Page not implemented: %d\n", current_page);
                     window.close();
                     break;
             }
@@ -420,6 +431,8 @@ namespace QuickMedia {
                     next_page = Page::SEARCH_RESULT;
             } else if(next_page == Page::CONTENT_LIST) {
                 content_list_url = content_url;
+            } else if(next_page == Page::IMAGE_BOARD_THREAD_LIST) {
+                image_board_thread_list_url = content_url;
             }
             current_page = next_page;
             return true;
@@ -1307,6 +1320,71 @@ namespace QuickMedia {
 
         while (current_page == Page::CONTENT_DETAILS) {
             while (window.pollEvent(event)) {
+                base_event_handler(event, Page::CONTENT_LIST);
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
+            }
+
+            // TODO: This code is duplicated in many places. Handle it in one place.
+            if(redraw) {
+                redraw = false;
+                search_bar->onWindowResize(window_size);
+
+                float body_padding_horizontal = 50.0f;
+                float body_padding_vertical = 50.0f;
+                float body_width = window_size.x - body_padding_horizontal * 2.0f;
+                if(body_width < 400) {
+                    body_width = window_size.x;
+                    body_padding_horizontal = 0.0f;
+                }
+
+                float search_bottom = search_bar->getBottom();
+                body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+            }
+
+            search_bar->update();
+
+            window.clear(back_color);
+            body->draw(window, body_pos, body_size);
+            search_bar->draw(window);
+            window.display();
+        }
+    }
+
+    void Program::image_board_thread_list_page() {
+        assert(current_plugin->is_image_board());
+        ImageBoard *image_board = static_cast<ImageBoard*>(current_plugin);
+        if(image_board->get_threads(image_board_thread_list_url, body->items) != PluginResult::OK) {
+            show_notification("Content list", "Failed to get threads for url: " + image_board_thread_list_url, Urgency::CRITICAL);
+            current_page = Page::SEARCH_SUGGESTION;
+            return;
+        }
+
+        search_bar->onTextUpdateCallback = [this](const std::string &text) {
+            body->filter_search_fuzzy(text);
+            body->select_first_item();
+        };
+
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+            BodyItem *selected_item = body->get_selected();
+            if(!selected_item)
+                return false;
+
+            content_episode = selected_item->title;
+            content_url = selected_item->url;
+            current_page = Page::IMAGE_BOARD_THREAD;
+            body->clear_items();
+            return true;
+        };
+
+        sf::Vector2f body_pos;
+        sf::Vector2f body_size;
+        bool redraw = true;
+        sf::Event event;
+
+        while (current_page == Page::IMAGE_BOARD_THREAD_LIST) {
+            while (window.pollEvent(event)) {
                 base_event_handler(event, Page::SEARCH_SUGGESTION);
                 if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
                     redraw = true;
@@ -1336,6 +1414,114 @@ namespace QuickMedia {
             body->draw(window, body_pos, body_size);
             search_bar->draw(window);
             window.display();
+        }
+    }
+
+    void Program::image_board_thread_page() {
+        assert(current_plugin->is_image_board());
+        ImageBoard *image_board = static_cast<ImageBoard*>(current_plugin);
+        if(image_board->get_thread_comments(image_board_thread_list_url, content_url, body->items) != PluginResult::OK) {
+            show_notification("Content details", "Failed to get content details for url: " + content_url, Urgency::CRITICAL);
+            // TODO: This will return to an empty content list.
+            // Each page should have its own @Body so we can return to the last page and still have the data loaded
+            // however the cached images should be cleared.
+            current_page = Page::IMAGE_BOARD_THREAD_LIST;
+            return;
+        }
+
+        // Instead of using search bar to searching, use it for commenting.
+        // TODO: Have an option for the search bar to be multi-line.
+        search_bar->onTextUpdateCallback = nullptr;
+        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+            if(text.empty())
+                return false;
+            
+            return true;
+        };
+
+        sf::Vector2f body_pos;
+        sf::Vector2f body_size;
+        bool redraw = true;
+        sf::Event event;
+
+        std::stack<Body*> comment_navigation_stack;
+        comment_navigation_stack.push(body);
+
+        while (current_page == Page::IMAGE_BOARD_THREAD) {
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed) {
+                    current_page = Page::EXIT;
+                } else if(event.type == sf::Event::Resized) {
+                    window_size.x = event.size.width;
+                    window_size.y = event.size.height;
+                    sf::FloatRect visible_area(0, 0, window_size.x, window_size.y);
+                    window.setView(sf::View(visible_area));
+                }
+
+                if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
+                    redraw = true;
+                else if(event.type == sf::Event::KeyPressed) {
+                    Body *current_body = comment_navigation_stack.top();
+                    if(event.key.code == sf::Keyboard::Up) {
+                        current_body->select_previous_item();
+                    } else if(event.key.code == sf::Keyboard::Down) {
+                        current_body->select_next_item();
+                    } else if(event.key.code == sf::Keyboard::Escape) {
+                        current_page = Page::IMAGE_BOARD_THREAD_LIST;
+                        body->clear_items();
+                        body->reset_selected();
+                        search_bar->clear();
+                    }
+
+                    BodyItem *selected_item = current_body->get_selected();
+                    if(event.key.code == sf::Keyboard::Enter && selected_item && (comment_navigation_stack.size() == 1 || current_body->selected_item != 0) && !selected_item->replies.empty()) {
+                        // TODO: Optimize this by making body items shared_ptr instead of unique_ptr
+                        Body *new_body = new Body(this, font);
+                        new_body->draw_thumbnails = true;
+                        new_body->items.push_back(std::make_unique<BodyItem>(*selected_item));
+                        for(size_t reply_index : selected_item->replies) {
+                            new_body->items.push_back(std::make_unique<BodyItem>(*body->items[reply_index]));
+                        }
+                        comment_navigation_stack.push(new_body);
+                    } else if(event.key.code == sf::Keyboard::BackSpace && comment_navigation_stack.size() > 1) {
+                        delete comment_navigation_stack.top();
+                        comment_navigation_stack.pop();
+                    }
+                }
+            }
+
+            // TODO: This code is duplicated in many places. Handle it in one place.
+            if(redraw) {
+                redraw = false;
+                search_bar->onWindowResize(window_size);
+
+                float body_padding_horizontal = 50.0f;
+                float body_padding_vertical = 50.0f;
+                float body_width = window_size.x - body_padding_horizontal * 2.0f;
+                if(body_width < 400) {
+                    body_width = window_size.x;
+                    body_padding_horizontal = 0.0f;
+                }
+
+                float search_bottom = search_bar->getBottom();
+                body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+            }
+
+            //search_bar->update();
+
+            window.clear(back_color);
+            comment_navigation_stack.top()->draw(window, body_pos, body_size);
+            //search_bar->draw(window);
+            window.display();
+        }
+
+        // We dont delete the first item since it's a reference to the global body, which we dont want to delete
+        // as it's also used for other pages.
+        // TODO: Remove the first item as well when each page has their own body
+        while(comment_navigation_stack.size() > 1) {
+            delete comment_navigation_stack.top();
+            comment_navigation_stack.pop();
         }
     }
 }

@@ -20,6 +20,8 @@ namespace QuickMedia {
         std::string url;
         std::string thumbnail_url;
         bool visible;
+        // Used by image boards for example. The elements are indices to other body items
+        std::vector<size_t> replies;
     };
 
     using BodyItems = std::vector<std::unique_ptr<BodyItem>>;

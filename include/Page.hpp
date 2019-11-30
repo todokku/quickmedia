@@ -9,6 +9,8 @@ namespace QuickMedia {
         EPISODE_LIST,
         IMAGES,
         CONTENT_LIST,
-        CONTENT_DETAILS
+        CONTENT_DETAILS,
+        IMAGE_BOARD_THREAD_LIST,
+        IMAGE_BOARD_THREAD
     };
 }

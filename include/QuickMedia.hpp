@@ -32,6 +32,8 @@ namespace QuickMedia {
         void image_page();
         void content_list_page();
         void content_details_page();
+        void image_board_thread_list_page();
+        void image_board_thread_page();
 
         enum class LoadImageResult {
             OK,
@@ -57,6 +59,7 @@ namespace QuickMedia {
         std::string content_episode;
         std::string content_url;
         std::string content_list_url;
+        std::string image_board_thread_list_url;
         std::string chapter_title;
         int image_index;
         Path content_storage_file;
