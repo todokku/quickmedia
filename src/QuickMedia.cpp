@@ -491,7 +491,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottomWithoutShadow();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -592,7 +592,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -948,7 +948,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -1280,7 +1280,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -1340,7 +1340,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -1405,7 +1405,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             search_bar->update();
@@ -1505,7 +1505,7 @@ namespace QuickMedia {
 
                 float search_bottom = search_bar->getBottom();
                 body_pos = sf::Vector2f(body_padding_horizontal, search_bottom + body_padding_vertical);
-                body_size = sf::Vector2f(body_width, window_size.y - search_bottom);
+                body_size = sf::Vector2f(body_width, window_size.y - search_bottom - body_padding_vertical);
             }
 
             //search_bar->update();

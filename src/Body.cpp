@@ -126,8 +126,11 @@ namespace QuickMedia {
     // TODO: Show chapters (rows) that have been read differently to make it easier to see what
     // hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
-        const float font_height = title_text.getCharacterSize() + 8.0f;
+        const float font_height = title_text.getCharacterSize() + 4.0f;
         const float image_height = 100.0f;
+        const float spacing_y = 15.0f;
+        const float padding_y = 2.0f;
+        const float start_y = pos.y;
 
         sf::RectangleShape image_fallback(sf::Vector2f(50, image_height));
         image_fallback.setFillColor(sf::Color::White);
@@ -152,37 +155,45 @@ namespace QuickMedia {
         if((int)item_thumbnail_textures.size() != num_items)
             item_thumbnail_textures.resize(num_items);
 
-        float row_height = font_height;
-        if(draw_thumbnails)
-            row_height = image_height;
-        const float total_row_height = row_height + 15.0f;
-        const int max_visible_rows = size.y / total_row_height - 1;
-
         // Find the starting row that can be drawn to make selected row visible as well
-        int visible_rows = 0;
         int first_visible_item = selected_item;
         assert(first_visible_item >= 0 && first_visible_item < (int)items.size());
-        for(; first_visible_item >= 0 && visible_rows < max_visible_rows; --first_visible_item) {
+        float visible_height = 0.0f;
+        for(; first_visible_item >= 0; --first_visible_item) {
             auto &item = items[first_visible_item];
-            if(item->visible)
-                ++visible_rows;
+            if(item->visible) {
+                float item_height = font_height * std::max(1, item->num_lines);
+                if(draw_thumbnails && !item->thumbnail_url.empty()) {
+                    item_height = std::max(item_height, image_height);
+                }
+                item_height += spacing_y + padding_y * 2.0f;
+                visible_height += item_height;
+                if(visible_height >= size.y) {
+                    --first_visible_item;
+                    //pos.y += (size.y - (visible_height - item_height));
+                    pos.y -= (visible_height - size.y);
+                    break;
+                }
+            }
         }
-
-        auto window_size = window.getSize();
 
         for(int i = first_visible_item + 1; i < num_items; ++i) {
             const auto &item = items[i];
             auto &item_thumbnail = item_thumbnail_textures[i];
 
-            if(pos.y >= window_size.y)
-                return;
+            if(pos.y >= start_y + size.y)
+                break;
 
             if(!item->visible)
                 continue;
 
-            float row_height = font_height;
+            float item_height = font_height * std::max(1, item->num_lines);
+            if(draw_thumbnails && !item->thumbnail_url.empty()) {
+                item_height = std::max(item_height, image_height);
+            }
+            item_height += (padding_y * 2.0f);
+
             if(draw_thumbnails) {
-                row_height = image_height;
                 // TODO: Should this be optimized by instead of checking if url changes based on index,
                 // put thumbnails in hash map based on url?
                 if(item->thumbnail_url.empty() && item_thumbnail.texture) {
@@ -197,7 +208,7 @@ namespace QuickMedia {
             sf::Vector2f item_pos = pos;
             if(i == selected_item) {
                 selected_border.setPosition(pos);
-                selected_border.setSize(sf::Vector2f(selected_border_width, row_height));
+                selected_border.setSize(sf::Vector2f(selected_border_width, item_height));
                 window.draw(selected_border);
                 item_pos.x += selected_border_width;
                 item_background.setFillColor(sf::Color(0, 85, 119));
@@ -208,10 +219,10 @@ namespace QuickMedia {
             item_pos.x = std::floor(item_pos.x);
             item_pos.y = std::floor(item_pos.y);
             item_background_shadow.setPosition(item_pos + sf::Vector2f(5.0f, 5.0f));
-            item_background_shadow.setSize(sf::Vector2f(size.x, row_height));
+            item_background_shadow.setSize(sf::Vector2f(size.x, item_height));
             window.draw(item_background_shadow);
             item_background.setPosition(item_pos);
-            item_background.setSize(sf::Vector2f(size.x, row_height));
+            item_background.setSize(sf::Vector2f(size.x, item_height));
             window.draw(item_background);
 
             float text_offset_x = 0.0f;
@@ -226,18 +237,18 @@ namespace QuickMedia {
                     auto image_scale_ratio = scale.x / scale.y;
                     const float width_ratio = height_ratio * image_scale_ratio;
                     image.setScale(width_ratio, height_ratio);
-                    image.setPosition(item_pos);
+                    image.setPosition(item_pos + sf::Vector2f(0.0f, padding_y));
                     window.draw(image);
                     text_offset_x = width_ratio * image_size.x;
                 } else if(!item->thumbnail_url.empty()) {
-                    image_fallback.setPosition(item_pos);
+                    image_fallback.setPosition(item_pos + sf::Vector2f(0.0f, padding_y));
                     window.draw(image_fallback);
                     text_offset_x = image_fallback.getSize().x;
                 }
             }
 
             title_text.setString(item->title);
-            title_text.setPosition(std::floor(item_pos.x + text_offset_x + 10.0f), std::floor(item_pos.y));
+            title_text.setPosition(std::floor(item_pos.x + text_offset_x + 10.0f), std::floor(item_pos.y + padding_y));
             window.draw(title_text);
 
             // TODO: Do the same for non-manga content
@@ -253,7 +264,7 @@ namespace QuickMedia {
                 }
             }
 
-            pos.y += total_row_height;
+            pos.y += item_height + spacing_y;
         }
     }
 

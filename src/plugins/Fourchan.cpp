@@ -617,7 +617,7 @@ namespace QuickMedia {
                 );
                 html_unescape_sequences(comment_text);
                 BodyItem *body_item = result_items[body_item_index].get();
-                body_item->title = std::move(comment_text);
+                body_item->set_title(std::move(comment_text));
 
                 const Json::Value &ext = post["ext"];
                 const Json::Value &tim = post["tim"];

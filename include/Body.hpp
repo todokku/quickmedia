@@ -12,8 +12,18 @@ namespace QuickMedia {
 
     class BodyItem {
     public:
-        BodyItem(const std::string &_title): title(_title), visible(true) {
+        BodyItem(std::string _title): visible(true), num_lines(0) {
+            set_title(std::move(_title));
+        }
 
+        void set_title(std::string new_title) {
+            title = std::move(new_title);
+            // TODO: Optimize this
+            num_lines = 0;
+            for(char c : title) {
+                if(c == '\n')
+                    ++num_lines;
+            }
         }
 
         std::string title;
@@ -22,6 +32,7 @@ namespace QuickMedia {
         bool visible;
         // Used by image boards for example. The elements are indices to other body items
         std::vector<size_t> replies;
+        int num_lines;
     };
 
     using BodyItems = std::vector<std::unique_ptr<BodyItem>>;
