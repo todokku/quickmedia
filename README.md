@@ -2,6 +2,7 @@
 Native clients of websites with fast access to what you want to see, **with TOR support**. See [old video demo with manga](https://lbry.tv/quickmedia_manga-2019-08-05_21.20.46/7).\
 Currently supported websites: `youtube`, `manganelo`, `4chan` and _others_.\
 **Note:** Manganelo doesn't work when used with TOR.\
+**Note:** Posting comments on 4chan doesn't work when used with TOR. However browing works.\
 **Note:** TOR system service needs to be running (`systemctl start tor.service`).\
 Here is an example with YouTube:\
 ![QuickMedia Youtube Picture](QuickMediaYoutube.png)\
