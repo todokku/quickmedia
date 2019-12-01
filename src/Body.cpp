@@ -227,10 +227,10 @@ namespace QuickMedia {
 
             sf::Vector2f item_pos = pos;
             if(i == selected_item) {
-                selected_border.setPosition(pos);
-                selected_border.setSize(sf::Vector2f(selected_border_width, item_height));
-                window.draw(selected_border);
-                item_pos.x += selected_border_width;
+                //selected_border.setPosition(pos);
+                //selected_border.setSize(sf::Vector2f(selected_border_width, item_height));
+                //window.draw(selected_border);
+                //item_pos.x += selected_border_width;
                 item_background.setFillColor(sf::Color(0, 85, 119));
             } else {
                 item_background.setFillColor(front_color);
@@ -238,9 +238,15 @@ namespace QuickMedia {
 
             item_pos.x = std::floor(item_pos.x);
             item_pos.y = std::floor(item_pos.y);
-            item_background_shadow.setPosition(item_pos + sf::Vector2f(5.0f, 5.0f));
-            item_background_shadow.setSize(sf::Vector2f(size.x, item_height));
+
+            item_background_shadow.setPosition(item_pos + sf::Vector2f(size.x, 0.0f) + sf::Vector2f(0.0, 5.0f));
+            item_background_shadow.setSize(sf::Vector2f(5.0f, item_height));
             window.draw(item_background_shadow);
+
+            item_background_shadow.setPosition(item_pos + sf::Vector2f(0.0f, item_height) + sf::Vector2f(5.0, 0.0f));
+            item_background_shadow.setSize(sf::Vector2f(size.x - 5.0f, 5.0f));
+            window.draw(item_background_shadow);
+
             item_background.setPosition(item_pos);
             item_background.setSize(sf::Vector2f(size.x, item_height));
             window.draw(item_background);
