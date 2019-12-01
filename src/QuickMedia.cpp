@@ -1448,16 +1448,22 @@ namespace QuickMedia {
             REPLYING,
             SOLVING_POST_CAPTCHA,
             POSTING_SOLUTION,
-            POSTING_COMMENT
+            POSTING_COMMENT,
+            VIEWING_ATTACHED_IMAGE
         };
 
         NavigationStage navigation_stage = NavigationStage::VIEWING_COMMENTS;
         std::future<bool> captcha_request_future;
         std::future<bool> captcha_post_solution_future;
         std::future<bool> post_comment_future;
+        std::future<bool> load_image_future;
         sf::Texture captcha_texture;
         sf::Sprite captcha_sprite;
         std::mutex captcha_image_mutex;
+
+        auto attached_image_texture = std::make_unique<sf::Texture>();
+        sf::Sprite attached_image_sprite;
+        std::mutex attachment_load_mutex;
 
         GoogleCaptchaChallengeInfo challenge_info;
         sf::Text challenge_description_text("", font, 24);
@@ -1599,6 +1605,32 @@ namespace QuickMedia {
                         body->clear_items();
                         body->reset_selected();
                         search_bar->clear();
+                    } else if(event.key.code == sf::Keyboard::P) {
+                        // TODO: Make this work when thumbnail is preview for a video/gif instead of a static image
+                        BodyItem *selected_item = body->get_selected();
+                        if(selected_item && !selected_item->fullsize_image_url.empty()) {
+                            navigation_stage = NavigationStage::VIEWING_ATTACHED_IMAGE;
+                            load_image_future = std::async(std::launch::async, [this, &image_board, &attached_image_texture, &attached_image_sprite, &attachment_load_mutex]() -> bool {
+                                BodyItem *selected_item = body->get_selected();
+                                if(!selected_item || selected_item->fullsize_image_url.empty()) {
+                                    return false;
+                                }
+                                std::string image_data;
+                                if(download_to_string(selected_item->fullsize_image_url, image_data, {}, image_board->use_tor) != DownloadResult::OK) {
+                                    show_notification(image_board->name, "Failed to download image: " + selected_item->fullsize_image_url, Urgency::CRITICAL);
+                                    return false;
+                                }
+
+                                std::lock_guard<std::mutex> lock(attachment_load_mutex);
+                                if(!attached_image_texture->loadFromMemory(image_data.data(), image_data.size())) {
+                                    show_notification(image_board->name, "Failed to load image downloaded from url: " + selected_item->fullsize_image_url, Urgency::CRITICAL);
+                                    return false;
+                                }
+                                attached_image_texture->setSmooth(true);
+                                attached_image_sprite.setTexture(*attached_image_texture, true);
+                                return true;
+                            });
+                        }
                     }
 
                     BodyItem *selected_item = body->get_selected();
@@ -1694,6 +1726,13 @@ namespace QuickMedia {
                         navigation_stage = NavigationStage::VIEWING_COMMENTS;
                     }
                 }
+
+                if(event.type == sf::Event::KeyPressed && navigation_stage == NavigationStage::VIEWING_ATTACHED_IMAGE) {
+                    if(event.key.code == sf::Keyboard::Escape || event.key.code == sf::Keyboard::BackSpace) {
+                        navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                        attached_image_texture.reset(new sf::Texture());
+                    }
+                }
             }
 
             // TODO: This code is duplicated in many places. Handle it in one place.
@@ -1752,9 +1791,35 @@ namespace QuickMedia {
                 // TODO: Show "Posting..." when posting solution
             } else if(navigation_stage == NavigationStage::POSTING_COMMENT) {
                 // TODO: Show "Posting..." when posting comment
-            } else {
+            } else if(navigation_stage == NavigationStage::VIEWING_ATTACHED_IMAGE) {
+                // TODO: Show a white image with the text "Downloading..." while the image is downloading and loading
+                std::lock_guard<std::mutex> lock(attachment_load_mutex);
+                if(attached_image_texture->getNativeHandle() != 0) {
+                    auto content_size = window_size;
+                    sf::Vector2u texture_size = attached_image_texture->getSize();
+                    sf::Vector2f texture_size_f(texture_size.x, texture_size.y);
+                    auto image_scale = get_ratio(texture_size_f, clamp_to_size(texture_size_f, content_size));
+                    attached_image_sprite.setScale(image_scale);
+
+                    auto image_size = texture_size_f;
+                    image_size.x *= image_scale.x;
+                    image_size.y *= image_scale.y;
+                    attached_image_sprite.setPosition(std::floor(content_size.x * 0.5f - image_size.x * 0.5f), std::floor(content_size.y * 0.5f - image_size.y * 0.5f));
+                    window.draw(attached_image_sprite);
+                } else {
+                    sf::RectangleShape rect(sf::Vector2f(640.0f, 480.0f));
+                    rect.setFillColor(sf::Color::White);
+                    auto content_size = window_size;
+                    auto rect_size = clamp_to_size(rect.getSize(), content_size);
+                    rect.setSize(rect_size);
+                    rect.setPosition(std::floor(content_size.x * 0.5f - rect_size.x * 0.5f), std::floor(content_size.y * 0.5f - rect_size.y * 0.5f));
+                    window.draw(rect);
+                }
+            } else if(navigation_stage == NavigationStage::REPLYING) {
                 body->draw(window, body_pos, body_size);
                 search_bar->draw(window);
+            } else if(navigation_stage == NavigationStage::VIEWING_COMMENTS) {
+                body->draw(window, body_pos, body_size);
             }
             window.display();
         }
@@ -1766,5 +1831,7 @@ namespace QuickMedia {
             captcha_post_solution_future.get();
         if(post_comment_future.valid())
             post_comment_future.get();
+        if(load_image_future.valid())
+            load_image_future.get();
     }
 }

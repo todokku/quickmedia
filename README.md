@@ -25,7 +25,8 @@ Press `Ctrl + T` when hovering over a manga chapter to start tracking manga afte
 accessible in PATH environment variable.\
 Press `Backspace` to return to the preview item when reading replies in image board threads.\
 Press `Ctrl + R` to post a reply to a thread (TODO: This should be the keybinding for replying to one comment, not the thread).\
-Press `1 to 9` or `Numpad 1 to 9` to select google captcha image when posting a comment on 4chan.
+Press `1 to 9` or `Numpad 1 to 9` to select google captcha image when posting a comment on 4chan.\
+Press `P` to preview the attached item of the selected row in full screen view. Only works for image boards when browsing a thread.
 ## Video controls
 Press `space` to pause/unpause video. `Double-click` video to fullscreen or leave fullscreen.
 # Dependencies

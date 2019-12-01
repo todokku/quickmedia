@@ -60,6 +60,12 @@ namespace QuickMedia {
     }
 
     void Body::reset_selected() {
+        for(size_t i = 0; i < items.size(); ++i) {
+            if(items[i]->visible) {
+                selected_item = i;
+                return;
+            }
+        }
         selected_item = 0;
     }
 

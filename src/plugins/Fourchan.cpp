@@ -353,7 +353,9 @@ namespace QuickMedia {
                     }
                     // "s" means small, that's the url 4chan uses for thumbnails.
                     // thumbnails always has .jpg extension even if they are gifs or webm.
-                    body_item->thumbnail_url = fourchan_image_url + list_url + "/" + std::to_string(tim.asInt64()) + "s.jpg";
+                    std::string tim_str = std::to_string(tim.asInt64());
+                    body_item->thumbnail_url = fourchan_image_url + list_url + "/" + tim_str + "s.jpg";
+                    body_item->fullsize_image_url = fourchan_image_url + list_url + "/" + tim_str + ext_str;
                 }
                 
                 ++body_item_index;
