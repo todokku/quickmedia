@@ -164,7 +164,7 @@ namespace QuickMedia {
                 fprintf(stderr, "Failed to load plugin logo, path: %s\n", plugin_logo_path.c_str());
                 return -2;
             }
-            //plugin_logo.generateMipmap();
+            plugin_logo.generateMipmap();
             plugin_logo.setSmooth(true);
         }
 
@@ -1528,7 +1528,7 @@ namespace QuickMedia {
 
             window.clear(back_color);
             body->draw(window, body_pos, body_size);
-            //search_bar->draw(window);
+            search_bar->draw(window);
             window.display();
         }
     }

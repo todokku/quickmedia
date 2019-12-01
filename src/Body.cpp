@@ -127,8 +127,7 @@ namespace QuickMedia {
     // TODO: Use a render target for the whole body so all images can be put into one.
     // TODO: Unload thumbnails once they are no longer visible on the screen.
     // TODO: Load thumbnails with more than one thread.
-    // TODO: Show chapters (rows) that have been read differently to make it easier to see what
-    // hasn't been read yet.
+    // TODO: Show chapters (rows) that have been read differently to make it easier to see what hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
         const float font_height = title_text.getCharacterSize() + 4.0f;
         const float image_max_height = 100.0f;
