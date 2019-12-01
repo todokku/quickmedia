@@ -1612,17 +1612,22 @@ namespace QuickMedia {
                         }
                         comment_navigation_stack.push(body->selected_item);
                     } else if(event.key.code == sf::Keyboard::BackSpace && !comment_navigation_stack.empty()) {
+                        size_t previous_selected = 0;
+                        if(!comment_navigation_stack.empty()) {
+                            previous_selected = comment_navigation_stack.top();
+                        }
                         comment_navigation_stack.pop();
                         if(comment_navigation_stack.empty()) {
                             for(auto &body_item : body->items) {
                                 body_item->visible = true;
                             }
+                            body->selected_item = previous_selected;
                         } else {
                             for(auto &body_item : body->items) {
                                 body_item->visible = false;
                             }
-                            body->selected_item = comment_navigation_stack.top();
-                            selected_item = body->items[body->selected_item].get();
+                            body->selected_item = previous_selected;
+                            selected_item = body->items[comment_navigation_stack.top()].get();
                             selected_item->visible = true;
                             for(size_t reply_index : selected_item->replies) {
                                 body->items[reply_index]->visible = true;

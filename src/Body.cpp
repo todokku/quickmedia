@@ -110,7 +110,6 @@ namespace QuickMedia {
             if(download_to_string(url, texture_data) == DownloadResult::OK) {
                 if(result->loadFromMemory(texture_data.data(), texture_data.size())) {
                     //result->generateMipmap();
-                    result->setSmooth(true);
                 }
             }
             loading_thumbnail = false;
