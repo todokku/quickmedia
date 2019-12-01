@@ -127,12 +127,12 @@ namespace QuickMedia {
     // hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
         const float font_height = title_text.getCharacterSize() + 4.0f;
-        const float image_height = 100.0f;
+        const float image_max_height = 100.0f;
         const float spacing_y = 15.0f;
         const float padding_y = 2.0f;
         const float start_y = pos.y;
 
-        sf::RectangleShape image_fallback(sf::Vector2f(50, image_height));
+        sf::RectangleShape image_fallback(sf::Vector2f(50, image_max_height));
         image_fallback.setFillColor(sf::Color::White);
 
         sf::Sprite image;
@@ -164,6 +164,12 @@ namespace QuickMedia {
             if(item->visible) {
                 float item_height = font_height * std::max(1, item->num_lines);
                 if(draw_thumbnails && !item->thumbnail_url.empty()) {
+                    auto &item_thumbnail = item_thumbnail_textures[first_visible_item];
+                    float image_height = image_max_height;
+                    if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
+                        auto image_size = item_thumbnail.texture->getSize();
+                        image_height = std::min(image_max_height, (float)image_size.y);
+                    }
                     item_height = std::max(item_height, image_height);
                 }
                 item_height += spacing_y + padding_y * 2.0f;
@@ -189,6 +195,11 @@ namespace QuickMedia {
 
             float item_height = font_height * std::max(1, item->num_lines);
             if(draw_thumbnails && !item->thumbnail_url.empty()) {
+                float image_height = image_max_height;
+                if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
+                    auto image_size = item_thumbnail.texture->getSize();
+                    image_height = std::min(image_max_height, (float)image_size.y);
+                }
                 item_height = std::max(item_height, image_height);
             }
             item_height += (padding_y * 2.0f);
@@ -232,7 +243,7 @@ namespace QuickMedia {
                 if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
                     image.setTexture(*item_thumbnail.texture, true);
                     auto image_size = image.getTexture()->getSize();
-                    auto height_ratio = image_height / image_size.y;
+                    auto height_ratio = std::min(image_max_height, (float)image_size.y) / image_size.y;
                     auto scale = image.getScale();
                     auto image_scale_ratio = scale.x / scale.y;
                     const float width_ratio = height_ratio * image_scale_ratio;
