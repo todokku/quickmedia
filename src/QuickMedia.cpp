@@ -49,10 +49,14 @@ namespace QuickMedia {
     {
         window.setVerticalSyncEnabled(true);
         if(!font.loadFromFile("../../../fonts/Lato-Regular.ttf")) {
-            fprintf(stderr, "Failed to load font!\n");
+            fprintf(stderr, "Failed to load font: Lato-Regular.ttf\n");
             abort();
         }
-        body = new Body(this, font);
+        if(!bold_font.loadFromFile("../../../fonts/Lato-Bold.ttf")) {
+            fprintf(stderr, "Failed to load font: Lato-Bold.ttf\n");
+            abort();
+        }
+        body = new Body(this, font, bold_font);
 
         struct sigaction action;
         action.sa_handler = sigpipe_handler;
@@ -349,7 +353,7 @@ namespace QuickMedia {
         std::string update_search_text;
         bool search_running = false;
 
-        Body history_body(this, font);
+        Body history_body(this, font, bold_font);
         const float tab_text_size = 18.0f;
         const float tab_height = tab_text_size + 10.0f;
         sf::Text all_tab_text("All", font, tab_text_size);
@@ -1444,8 +1448,7 @@ namespace QuickMedia {
         bool redraw = true;
         sf::Event event;
 
-        std::stack<Body*> comment_navigation_stack;
-        comment_navigation_stack.push(body);
+        std::stack<int> comment_navigation_stack;
 
         while (current_page == Page::IMAGE_BOARD_THREAD) {
             while (window.pollEvent(event)) {
@@ -1461,11 +1464,10 @@ namespace QuickMedia {
                 if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
                     redraw = true;
                 else if(event.type == sf::Event::KeyPressed) {
-                    Body *current_body = comment_navigation_stack.top();
                     if(event.key.code == sf::Keyboard::Up) {
-                        current_body->select_previous_item();
+                        body->select_previous_item();
                     } else if(event.key.code == sf::Keyboard::Down) {
-                        current_body->select_next_item();
+                        body->select_next_item();
                     } else if(event.key.code == sf::Keyboard::Escape) {
                         current_page = Page::IMAGE_BOARD_THREAD_LIST;
                         body->clear_items();
@@ -1473,19 +1475,33 @@ namespace QuickMedia {
                         search_bar->clear();
                     }
 
-                    BodyItem *selected_item = current_body->get_selected();
-                    if(event.key.code == sf::Keyboard::Enter && selected_item && (comment_navigation_stack.size() == 1 || current_body->selected_item != 0) && !selected_item->replies.empty()) {
-                        // TODO: Optimize this by making body items shared_ptr instead of unique_ptr
-                        Body *new_body = new Body(this, font);
-                        new_body->draw_thumbnails = true;
-                        new_body->items.push_back(std::make_unique<BodyItem>(*selected_item));
-                        for(size_t reply_index : selected_item->replies) {
-                            new_body->items.push_back(std::make_unique<BodyItem>(*body->items[reply_index]));
+                    BodyItem *selected_item = body->get_selected();
+                    if(event.key.code == sf::Keyboard::Enter && selected_item && (comment_navigation_stack.empty() || body->selected_item != comment_navigation_stack.top()) && !selected_item->replies.empty()) {
+                        for(auto &body_item : body->items) {
+                            body_item->visible = false;
                         }
-                        comment_navigation_stack.push(new_body);
-                    } else if(event.key.code == sf::Keyboard::BackSpace && comment_navigation_stack.size() > 1) {
-                        delete comment_navigation_stack.top();
+                        selected_item->visible = true;
+                        for(size_t reply_index : selected_item->replies) {
+                            body->items[reply_index]->visible = true;
+                        }
+                        comment_navigation_stack.push(body->selected_item);
+                    } else if(event.key.code == sf::Keyboard::BackSpace && !comment_navigation_stack.empty()) {
                         comment_navigation_stack.pop();
+                        if(comment_navigation_stack.empty()) {
+                            for(auto &body_item : body->items) {
+                                body_item->visible = true;
+                            }
+                        } else {
+                            for(auto &body_item : body->items) {
+                                body_item->visible = false;
+                            }
+                            body->selected_item = comment_navigation_stack.top();
+                            selected_item = body->items[body->selected_item].get();
+                            selected_item->visible = true;
+                            for(size_t reply_index : selected_item->replies) {
+                                body->items[reply_index]->visible = true;
+                            }
+                        }
                     }
                 }
             }
@@ -1511,17 +1527,9 @@ namespace QuickMedia {
             //search_bar->update();
 
             window.clear(back_color);
-            comment_navigation_stack.top()->draw(window, body_pos, body_size);
+            body->draw(window, body_pos, body_size);
             //search_bar->draw(window);
             window.display();
-        }
-
-        // We dont delete the first item since it's a reference to the global body, which we dont want to delete
-        // as it's also used for other pages.
-        // TODO: Remove the first item as well when each page has their own body
-        while(comment_navigation_stack.size() > 1) {
-            delete comment_navigation_stack.top();
-            comment_navigation_stack.pop();
         }
     }
 }

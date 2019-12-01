@@ -10,16 +10,20 @@ const sf::Color front_color(43, 45, 47);
 const sf::Color back_color(33, 35, 37);
 
 namespace QuickMedia {
-    Body::Body(Program *program, sf::Font &font) :
+    Body::Body(Program *program, sf::Font &font, sf::Font &bold_font) :
         program(program),
         title_text("", font, 14),
         progress_text("", font, 14),
+        author_text("", bold_font, 14),
+        replies_text("", font, 14),
         selected_item(0),
         draw_thumbnails(false),
         loading_thumbnail(false)
     {
         title_text.setFillColor(sf::Color::White);
         progress_text.setFillColor(sf::Color::White);
+        author_text.setFillColor(sf::Color::White);
+        replies_text.setFillColor(sf::Color(129, 162, 190));
     }
 
     void Body::select_previous_item() {
@@ -129,7 +133,7 @@ namespace QuickMedia {
         const float font_height = title_text.getCharacterSize() + 4.0f;
         const float image_max_height = 100.0f;
         const float spacing_y = 15.0f;
-        const float padding_y = 2.0f;
+        const float padding_y = 5.0f;
         const float start_y = pos.y;
 
         sf::RectangleShape image_fallback(sf::Vector2f(50, image_max_height));
@@ -163,6 +167,9 @@ namespace QuickMedia {
             auto &item = items[first_visible_item];
             if(item->visible) {
                 float item_height = font_height * std::max(1, item->num_lines);
+                if(!item->author.empty()) {
+                    item_height += author_text.getCharacterSize() + 2.0f;
+                }
                 if(draw_thumbnails && !item->thumbnail_url.empty()) {
                     auto &item_thumbnail = item_thumbnail_textures[first_visible_item];
                     float image_height = image_max_height;
@@ -194,6 +201,9 @@ namespace QuickMedia {
                 continue;
 
             float item_height = font_height * std::max(1, item->num_lines);
+            if(!item->author.empty()) {
+                item_height += author_text.getCharacterSize() + 2.0f;
+            }
             if(draw_thumbnails && !item->thumbnail_url.empty()) {
                 float image_height = image_max_height;
                 if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
@@ -258,6 +268,23 @@ namespace QuickMedia {
                 }
             }
 
+            if(!item->author.empty()) {
+                author_text.setString(item->author);
+                author_text.setPosition(std::floor(item_pos.x + text_offset_x + 10.0f), std::floor(item_pos.y + padding_y));
+                window.draw(author_text);
+
+                sf::Vector2f replies_text_pos = author_text.getPosition();
+                replies_text_pos.x += author_text.getLocalBounds().width + 5.0f;
+                for(size_t reply_index : item->replies) {
+                    BodyItem *reply_item = items[reply_index].get();
+                    replies_text.setString(">>" + reply_item->post_number);
+                    replies_text.setPosition(replies_text_pos);
+                    window.draw(replies_text);
+                    replies_text_pos.x += replies_text.getLocalBounds().width + 5.0f;
+                }
+
+                item_pos.y += author_text.getCharacterSize() + 2.0f;
+            }
             title_text.setString(item->title);
             title_text.setPosition(std::floor(item_pos.x + text_offset_x + 10.0f), std::floor(item_pos.y + padding_y));
             window.draw(title_text);

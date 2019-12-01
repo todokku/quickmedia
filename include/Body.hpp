@@ -29,17 +29,19 @@ namespace QuickMedia {
         std::string title;
         std::string url;
         std::string thumbnail_url;
+        std::string author;
         bool visible;
         // Used by image boards for example. The elements are indices to other body items
         std::vector<size_t> replies;
         int num_lines;
+        std::string post_number;
     };
 
     using BodyItems = std::vector<std::unique_ptr<BodyItem>>;
 
     class Body {
     public:
-        Body(Program *program, sf::Font &font);
+        Body(Program *program, sf::Font &font, sf::Font &bold_font);
 
         // Select previous item, ignoring invisible items
         void select_previous_item();
@@ -65,6 +67,8 @@ namespace QuickMedia {
 
         sf::Text title_text;
         sf::Text progress_text;
+        sf::Text author_text;
+        sf::Text replies_text;
         int selected_item;
         BodyItems items;
         std::thread thumbnail_load_thread;

@@ -48,6 +48,7 @@ namespace QuickMedia {
         sf::RenderWindow window;
         sf::Vector2f window_size;
         sf::Font font;
+        sf::Font bold_font;
         Body *body;
         Plugin *current_plugin;
         sf::Texture plugin_logo;

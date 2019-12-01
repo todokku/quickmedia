@@ -575,8 +575,10 @@ namespace QuickMedia {
                 if(!post_num.isNumeric())
                     continue;
                 
-                comment_by_postno[post_num.asInt64()] = result_items.size();
+                int64_t post_num_int = post_num.asInt64();
+                comment_by_postno[post_num_int] = result_items.size();
                 result_items.push_back(std::make_unique<BodyItem>(""));
+                result_items.back()->post_number = std::to_string(post_num_int);
             }
         }
 
@@ -594,6 +596,11 @@ namespace QuickMedia {
                 const Json::Value &post_num = post["no"];
                 if(!post_num.isNumeric())
                     continue;
+
+                const Json::Value &author = post["name"];
+                std::string author_str = "Anonymous";
+                if(author.isString())
+                    author_str = author.asString();
 
                 std::string comment_text;
                 extract_comment_pieces(comment_begin, comment_end - comment_begin,
@@ -630,6 +637,7 @@ namespace QuickMedia {
                 html_unescape_sequences(comment_text);
                 BodyItem *body_item = result_items[body_item_index].get();
                 body_item->set_title(std::move(comment_text));
+                body_item->author = std::move(author_str);
 
                 const Json::Value &ext = post["ext"];
                 const Json::Value &tim = post["tim"];
