@@ -2,6 +2,8 @@
 
 #include "../include/Page.hpp"
 #include "../include/Body.hpp"
+#include "../include/StringUtils.hpp"
+#include "../include/DownloadUtils.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -25,12 +27,6 @@ namespace QuickMedia {
         NET_ERR
     };
 
-    enum class DownloadResult {
-        OK,
-        ERR,
-        NET_ERR
-    };
-
     enum class ImageResult {
         OK,
         END,
@@ -38,13 +34,6 @@ namespace QuickMedia {
         NET_ERR
     };
 
-    struct CommandArg {
-        std::string option;
-        std::string value;
-    };
-
-    std::string strip(const std::string &str);
-    void string_replace_all(std::string &str, const std::string &old_str, const std::string &new_str);
     void html_unescape_sequences(std::string &str);
 
     class Plugin {
@@ -76,8 +65,6 @@ namespace QuickMedia {
         virtual int get_search_delay() const = 0;
         virtual bool search_suggestion_is_search() const { return false; }
         virtual Page get_page_after_search() const = 0;
-
-        DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {});
 
         const std::string name;
         bool use_tor = false;

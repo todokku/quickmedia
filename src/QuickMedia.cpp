@@ -7,6 +7,7 @@
 #include "../include/Program.h"
 #include "../include/VideoPlayer.hpp"
 #include "../include/StringUtils.hpp"
+#include "../include/GoogleCaptcha.hpp"
 #include <cppcodec/base64_rfc4648.hpp>
 
 #include <SFML/Graphics/RectangleShape.hpp>
@@ -278,7 +279,7 @@ namespace QuickMedia {
 
     static void show_notification(const std::string &title, const std::string &description, Urgency urgency = Urgency::NORMAL) {
         const char *args[] = { "notify-send", "-u", urgency_string(urgency), "--", title.c_str(), description.c_str(), nullptr };
-        exec_program(args, nullptr, nullptr);
+        exec_program_async(args, nullptr);
         printf("Notification: title: %s, description: %s\n", title.c_str(), description.c_str());
     }
 
@@ -1031,7 +1032,7 @@ namespace QuickMedia {
                     return true;
 
                 std::string image_content;
-                if(current_plugin->download_to_string(url, image_content) != DownloadResult::OK) {
+                if(download_to_string(url, image_content) != DownloadResult::OK) {
                     show_notification("Manganelo", "Failed to download image: " + url, Urgency::CRITICAL);
                     return false;
                 }
@@ -1423,6 +1424,9 @@ namespace QuickMedia {
 
     void Program::image_board_thread_page() {
         assert(current_plugin->is_image_board());
+        // TODO: Support image board other than 4chan. To make this work, the captcha code needs to be changed
+        // to work with other captcha than google captcha
+        assert(current_plugin->name == "4chan");
         ImageBoard *image_board = static_cast<ImageBoard*>(current_plugin);
         if(image_board->get_thread_comments(image_board_thread_list_url, content_url, body->items) != PluginResult::OK) {
             show_notification("Content details", "Failed to get content details for url: " + content_url, Urgency::CRITICAL);
@@ -1433,13 +1437,135 @@ namespace QuickMedia {
             return;
         }
 
+        const std::string &board = image_board_thread_list_url;
+        const std::string &thread = content_url;
+
+        fprintf(stderr, "boards: %s, thread: %s\n", board.c_str(), thread.c_str());
+
+        // TODO: Instead of using stage here, use different pages for each stage
+        enum class NavigationStage {
+            VIEWING_COMMENTS,
+            REPLYING,
+            SOLVING_POST_CAPTCHA,
+            POSTING_SOLUTION,
+            POSTING_COMMENT
+        };
+
+        NavigationStage navigation_stage = NavigationStage::VIEWING_COMMENTS;
+        std::future<bool> captcha_request_future;
+        std::future<bool> captcha_post_solution_future;
+        std::future<bool> post_comment_future;
+        sf::Texture captcha_texture;
+        sf::Sprite captcha_sprite;
+        std::mutex captcha_image_mutex;
+
+        GoogleCaptchaChallengeInfo challenge_info;
+        sf::Text challenge_description_text("", font, 24);
+        challenge_description_text.setFillColor(sf::Color::White);
+        const size_t captcha_num_columns = 3;
+        const size_t captcha_num_rows = 3;
+        std::array<bool, captcha_num_columns * captcha_num_rows> selected_captcha_images;
+        for(size_t i = 0; i < selected_captcha_images.size(); ++i) {
+            selected_captcha_images[i] = false;
+        }
+        sf::RectangleShape captcha_selection_rect;
+        captcha_selection_rect.setOutlineThickness(5.0f);
+        captcha_selection_rect.setOutlineColor(sf::Color(0, 85, 119));
+        // TODO: Draw only the outline instead of a transparent rectangle
+        captcha_selection_rect.setFillColor(sf::Color::Transparent);
+
+        // Valid for 2 minutes after solving a captcha
+        std::string captcha_post_id;
+        sf::Clock captcha_solved_time;
+        std::string comment_to_post;
+
+        // TODO: Show a white image with "Loading..." text while the captcha image is downloading
+
+        // TODO: Make this work with other sites than 4chan
+        auto request_google_captcha_image = [this, &captcha_texture, &captcha_image_mutex, &navigation_stage, &captcha_sprite, &challenge_description_text](GoogleCaptchaChallengeInfo &challenge_info) {
+            std::string payload_image_data;
+            DownloadResult download_image_result = download_to_string(challenge_info.payload_url, payload_image_data, {}, current_plugin->use_tor);
+            if(download_image_result == DownloadResult::OK) {
+                std::lock_guard<std::mutex> lock(captcha_image_mutex);
+                if(captcha_texture.loadFromMemory(payload_image_data.data(), payload_image_data.size())) {
+                    captcha_texture.setSmooth(true);
+                    captcha_sprite.setTexture(captcha_texture, true);
+                    challenge_description_text.setString(challenge_info.description);
+                } else {
+                    show_notification("Google captcha", "Failed to load downloaded captcha image", Urgency::CRITICAL);
+                    navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                }
+            } else {
+                show_notification("Google captcha", "Failed to download captcha image", Urgency::CRITICAL);
+                navigation_stage = NavigationStage::VIEWING_COMMENTS;
+            }
+        };
+
+        auto request_new_google_captcha_challenge = [this, &selected_captcha_images, &navigation_stage, &captcha_request_future, &request_google_captcha_image, &challenge_info]() {
+            fprintf(stderr, "Solving captcha!\n");
+            navigation_stage = NavigationStage::SOLVING_POST_CAPTCHA;
+            for(size_t i = 0; i < selected_captcha_images.size(); ++i) {
+                selected_captcha_images[i] = false;
+            }
+            const std::string fourchan_google_captcha_api_key = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc";
+            const std::string referer = "https://boards.4chan.org/";
+            captcha_request_future = google_captcha_request_challenge(fourchan_google_captcha_api_key, referer,
+                [&navigation_stage, &request_google_captcha_image, &challenge_info](std::optional<GoogleCaptchaChallengeInfo> new_challenge_info) {
+                    if(navigation_stage != NavigationStage::SOLVING_POST_CAPTCHA)
+                        return;
+
+                    if(new_challenge_info) {
+                        challenge_info = new_challenge_info.value();
+                        request_google_captcha_image(challenge_info);
+                    } else {
+                        show_notification("Google captcha", "Failed to get captcha challenge", Urgency::CRITICAL);
+                        navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                    }
+                }, current_plugin->use_tor);
+        };
+
+        auto post_comment = [this, &navigation_stage, &image_board, &board, &thread, &captcha_post_id, &comment_to_post, &request_new_google_captcha_challenge]() {
+            navigation_stage = NavigationStage::POSTING_COMMENT;
+            PostResult post_result = image_board->post_comment(board, thread, captcha_post_id, comment_to_post);
+            if(post_result == PostResult::OK) {
+                show_notification(current_plugin->name, "Comment posted!");
+                navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                // TODO: Append posted comment to the thread so the user can see their posted comment.
+                // TODO: Asynchronously update the thread periodically to show new comments.
+            } else if(post_result == PostResult::TRY_AGAIN) {
+                show_notification(current_plugin->name, "Error while posting, did the captcha expire? Please try again");
+                // TODO: Check if the response contains a new captcha instead of requesting a new one manually
+                request_new_google_captcha_challenge();
+            } else if(post_result == PostResult::BANNED) {
+                show_notification(current_plugin->name, "Failed to post comment because you are banned", Urgency::CRITICAL);
+                navigation_stage = NavigationStage::VIEWING_COMMENTS;
+            } else if(post_result == PostResult::ERR) {
+                show_notification(current_plugin->name, "Failed to post comment. Is " + current_plugin->name + " down or is your internet down?", Urgency::CRITICAL);
+                navigation_stage = NavigationStage::VIEWING_COMMENTS;
+            } else {
+                assert(false && "Unhandled post result");
+                show_notification(current_plugin->name, "Failed to post comment. Unknown error", Urgency::CRITICAL);
+                navigation_stage = NavigationStage::VIEWING_COMMENTS;
+            }
+        };
+
         // Instead of using search bar to searching, use it for commenting.
         // TODO: Have an option for the search bar to be multi-line.
         search_bar->onTextUpdateCallback = nullptr;
-        search_bar->onTextSubmitCallback = [this](const std::string &text) -> bool {
+        search_bar->onTextSubmitCallback = [&post_comment_future, &navigation_stage, &request_new_google_captcha_challenge, &comment_to_post, &captcha_post_id, &captcha_solved_time, &post_comment](const std::string &text) -> bool {
             if(text.empty())
                 return false;
             
+            assert(navigation_stage == NavigationStage::REPLYING);
+            comment_to_post = text;
+            if(!captcha_post_id.empty() && captcha_solved_time.getElapsedTime().asSeconds() < 120) {
+                post_comment_future = std::async(std::launch::async, [&post_comment]() -> bool {
+                    post_comment();
+                    return true;
+                });
+            } else {
+                request_new_google_captcha_challenge();
+            }
             return true;
         };
 
@@ -1463,7 +1589,7 @@ namespace QuickMedia {
 
                 if(event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus)
                     redraw = true;
-                else if(event.type == sf::Event::KeyPressed) {
+                else if(event.type == sf::Event::KeyPressed && navigation_stage == NavigationStage::VIEWING_COMMENTS) {
                     if(event.key.code == sf::Keyboard::Up) {
                         body->select_previous_item();
                     } else if(event.key.code == sf::Keyboard::Down) {
@@ -1502,6 +1628,65 @@ namespace QuickMedia {
                                 body->items[reply_index]->visible = true;
                             }
                         }
+                    } else if(event.key.code == sf::Keyboard::R && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && selected_item) {
+                        navigation_stage = NavigationStage::REPLYING;
+                        fprintf(stderr, "Replying!\n");
+                    }
+                } else if(event.type == sf::Event::TextEntered && navigation_stage == NavigationStage::REPLYING) {
+                    search_bar->onTextEntered(event.text.unicode);
+                }
+
+                if(event.type == sf::Event::KeyPressed && navigation_stage == NavigationStage::REPLYING) {
+                    if(event.key.code == sf::Keyboard::Escape) {
+                        search_bar->clear();
+                        navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                    }
+                }
+
+                if(event.type == sf::Event::KeyPressed && navigation_stage == NavigationStage::SOLVING_POST_CAPTCHA) {
+                    int num = -1;
+                    if(event.key.code >= sf::Keyboard::Num1 && event.key.code <= sf::Keyboard::Num9) {
+                        num = event.key.code - sf::Keyboard::Num1;
+                    } else if(event.key.code >= sf::Keyboard::Numpad1 && event.key.code <= sf::Keyboard::Numpad9) {
+                        num = event.key.code - sf::Keyboard::Numpad1;
+                    }
+
+                    constexpr int select_map[9] = { 6, 7, 8, 3, 4, 5, 0, 1, 2 };
+                    if(num != -1) {
+                        int index = select_map[num];
+                        selected_captcha_images[index] = !selected_captcha_images[index];
+                    }
+
+                    if(event.key.code == sf::Keyboard::Escape) {
+                        navigation_stage = NavigationStage::VIEWING_COMMENTS;
+                    } else if(event.key.code == sf::Keyboard::Enter) {
+                        navigation_stage = NavigationStage::POSTING_SOLUTION;
+                        const std::string fourchan_google_captcha_api_key = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc";
+                        captcha_post_solution_future = google_captcha_post_solution(fourchan_google_captcha_api_key, challenge_info.id, selected_captcha_images,
+                            [&navigation_stage, &captcha_post_id, &captcha_solved_time, &selected_captcha_images, &challenge_info, &request_google_captcha_image, &post_comment](std::optional<std::string> new_captcha_post_id, std::optional<GoogleCaptchaChallengeInfo> new_challenge_info) {
+                                if(navigation_stage != NavigationStage::POSTING_SOLUTION)
+                                    return;
+
+                                if(new_captcha_post_id) {
+                                    captcha_post_id = new_captcha_post_id.value();
+                                    captcha_solved_time.restart();
+                                    post_comment();
+                                } else if(new_challenge_info) {
+                                    show_notification("Google captcha", "Failed to solve captcha, please try again");
+                                    challenge_info = new_challenge_info.value();
+                                    navigation_stage = NavigationStage::SOLVING_POST_CAPTCHA;
+                                    for(size_t i = 0; i < selected_captcha_images.size(); ++i) {
+                                        selected_captcha_images[i] = false;
+                                    }
+                                    request_google_captcha_image(challenge_info);
+                                }
+                            }, current_plugin->use_tor);
+                    }
+                }
+
+                if(event.type == sf::Event::KeyPressed && (navigation_stage == NavigationStage::POSTING_SOLUTION || navigation_stage == NavigationStage::POSTING_COMMENT)) {
+                    if(event.key.code == sf::Keyboard::Escape) {
+                        navigation_stage = NavigationStage::VIEWING_COMMENTS;
                     }
                 }
             }
@@ -1527,9 +1712,54 @@ namespace QuickMedia {
             //search_bar->update();
 
             window.clear(back_color);
-            body->draw(window, body_pos, body_size);
-            search_bar->draw(window);
+            if(navigation_stage == NavigationStage::SOLVING_POST_CAPTCHA) {
+                std::lock_guard<std::mutex> lock(captcha_image_mutex);
+                if(captcha_texture.getNativeHandle() != 0) {
+                    const float challenge_description_height = challenge_description_text.getCharacterSize() + 10.0f;
+                    sf::Vector2f content_size = window_size;
+                    content_size.y -= challenge_description_height;
+
+                    sf::Vector2u captcha_texture_size = captcha_texture.getSize();
+                    sf::Vector2f captcha_texture_size_f(captcha_texture_size.x, captcha_texture_size.y);
+                    auto image_scale = get_ratio(captcha_texture_size_f, clamp_to_size(captcha_texture_size_f, content_size));
+                    captcha_sprite.setScale(image_scale);
+
+                    auto image_size = captcha_texture_size_f;
+                    image_size.x *= image_scale.x;
+                    image_size.y *= image_scale.y;
+                    captcha_sprite.setPosition(std::floor(content_size.x * 0.5f - image_size.x * 0.5f), std::floor(challenge_description_height + content_size.y * 0.5f - image_size.y * 0.5f));
+                    window.draw(captcha_sprite);
+
+                    challenge_description_text.setPosition(captcha_sprite.getPosition() + sf::Vector2f(image_size.x * 0.5f, 0.0f) - sf::Vector2f(challenge_description_text.getLocalBounds().width * 0.5f, challenge_description_height));
+                    window.draw(challenge_description_text);
+
+                    for(size_t column = 0; column < captcha_num_columns; ++column) {
+                        for(size_t row = 0; row < captcha_num_rows; ++row) {
+                            if(selected_captcha_images[column + captcha_num_columns * row]) {
+                                captcha_selection_rect.setPosition(captcha_sprite.getPosition() + sf::Vector2f(image_size.x / captcha_num_columns * column, image_size.y / captcha_num_rows * row));
+                                captcha_selection_rect.setSize(sf::Vector2f(image_size.x / captcha_num_columns, image_size.y / captcha_num_rows));
+                                window.draw(captcha_selection_rect);
+                            }
+                        }
+                    }
+                }
+            } else if(navigation_stage == NavigationStage::POSTING_SOLUTION) {
+                // TODO: Show "Posting..." when posting solution
+            } else if(navigation_stage == NavigationStage::POSTING_COMMENT) {
+                // TODO: Show "Posting..." when posting comment
+            } else {
+                body->draw(window, body_pos, body_size);
+                search_bar->draw(window);
+            }
             window.display();
         }
+
+        // TODO: Instead of waiting for them, kill them somehow
+        if(captcha_request_future.valid())
+            captcha_request_future.get();
+        if(captcha_post_solution_future.valid())
+            captcha_post_solution_future.get();
+        if(post_comment_future.valid())
+            post_comment_future.get();
     }
 }

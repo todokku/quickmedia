@@ -11,6 +11,7 @@ namespace QuickMedia {
         SuggestionResult update_search_suggestions(const std::string &text, BodyItems &result_items) override;
         PluginResult get_threads(const std::string &url, BodyItems &result_items) override;
         PluginResult get_thread_comments(const std::string &list_url, const std::string &url, BodyItems &result_items) override;
+        PostResult post_comment(const std::string &board, const std::string &thread, const std::string &captcha_id, const std::string &comment) override;
         bool search_suggestions_has_thumbnails() const override { return false; }
         bool search_results_has_thumbnails() const override { return false; }
         int get_search_delay() const override { return 150; }
