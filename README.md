@@ -60,4 +60,7 @@ Show progress of manga in the history tab (current chapter out of total chapters
 Animate page navigation.\
 Properly format text in items. For example for 4chan. The size of the item should also change.\
 Show list of replies to a comment (for image boards).\
-Wrap text that is too long.
+Wrap text that is too long.\
+Add greentext support for quotes.\
+Add support for special formatting for posts by admins on imageboards.\
+For image boards, track (You)'s and show notification when somebody replies to your post.
