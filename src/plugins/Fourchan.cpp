@@ -514,6 +514,17 @@ namespace QuickMedia {
                         }
                     );
                     html_unescape_sequences(comment_text);
+                    // TODO: Do the same when wrapping is implemented
+                    int num_lines = 0;
+                    for(size_t i = 0; i < comment_text.size(); ++i) {
+                        if(comment_text[i] == '\n') {
+                            ++num_lines;
+                            if(num_lines == 6) {
+                                comment_text = comment_text.substr(0, i) + " (...)";
+                                break;
+                            }
+                        }
+                    }
                     auto body_item = std::make_unique<BodyItem>(std::move(comment_text));
                     body_item->url = std::to_string(thread_num.asInt64());
 
