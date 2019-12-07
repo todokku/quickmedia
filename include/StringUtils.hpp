@@ -10,4 +10,5 @@ namespace QuickMedia {
     void string_split(const std::string &str, char delimiter, StringSplitCallback callback_func);
     void string_replace_all(std::string &str, const std::string &old_str, const std::string &new_str);
     std::string strip(const std::string &str);
+    bool string_ends_with(const std::string &str, const std::string &ends_with_str);
 }

@@ -63,4 +63,5 @@ Show list of replies to a comment (for image boards).\
 Wrap text that is too long.\
 Add greentext support for quotes.\
 Add support for special formatting for posts by admins on imageboards.\
-For image boards, track (You)'s and show notification when somebody replies to your post.
+For image boards, track (You)'s and show notification when somebody replies to your post.\
+In image boards when viewing videos, automatically play the next one after the current one has finished playing (just like the youtube plugin does).

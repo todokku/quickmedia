@@ -309,7 +309,7 @@ namespace QuickMedia {
                 if(current_json.isNumeric() && total_json.isNumeric()) {
                     progress_text.setString(std::string("Page: ") + std::to_string(current_json.asInt()) + "/" + std::to_string(total_json.asInt()));
                     auto bounds = progress_text.getLocalBounds();
-                    progress_text.setPosition(std::floor(item_pos.x + size.x - bounds.width - padding_x), std::floor(item_pos.y));
+                    progress_text.setPosition(std::floor(item_pos.x + size.x - bounds.width - padding_x), std::floor(item_pos.y + padding_y));
                     window.draw(progress_text);
                 }
             }

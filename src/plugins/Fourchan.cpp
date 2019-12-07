@@ -52,11 +52,6 @@ namespace QuickMedia {
         return SuggestionResult::OK;
     }
 
-    static bool string_ends_with(const std::string &str, const std::string &ends_with_str) {
-        size_t ends_len = ends_with_str.size();
-        return ends_len == 0 || (str.size() >= ends_len && memcmp(&str[str.size() - ends_len], ends_with_str.data(), ends_len) == 0);
-    }
-
     struct CommentPiece {
         enum class Type {
             TEXT,
@@ -236,7 +231,7 @@ namespace QuickMedia {
                     const Json::Value &tim = thread["tim"];
                     if(tim.isNumeric() && ext.isString()) {
                         std::string ext_str = ext.asString();
-                        if(ext_str == ".png" || ext_str == ".jpg" || ext_str == ".jpeg") {
+                        if(ext_str == ".png" || ext_str == ".jpg" || ext_str == ".jpeg" || ext_str == ".webm" || ext_str == ".mp4" || ext_str == ".gif") {
                         } else {
                             fprintf(stderr, "TODO: Support file extension: %s\n", ext_str.c_str());
                         }
@@ -347,7 +342,7 @@ namespace QuickMedia {
                 const Json::Value &tim = post["tim"];
                 if(tim.isNumeric() && ext.isString()) {
                     std::string ext_str = ext.asString();
-                    if(ext_str == ".png" || ext_str == ".jpg" || ext_str == ".jpeg") {
+                    if(ext_str == ".png" || ext_str == ".jpg" || ext_str == ".jpeg" || ext_str == ".webm" || ext_str == ".mp4" || ext_str == ".gif") {
                     } else {
                         fprintf(stderr, "TODO: Support file extension: %s\n", ext_str.c_str());
                     }
@@ -355,7 +350,7 @@ namespace QuickMedia {
                     // thumbnails always has .jpg extension even if they are gifs or webm.
                     std::string tim_str = std::to_string(tim.asInt64());
                     body_item->thumbnail_url = fourchan_image_url + list_url + "/" + tim_str + "s.jpg";
-                    body_item->fullsize_image_url = fourchan_image_url + list_url + "/" + tim_str + ext_str;
+                    body_item->attached_content_url = fourchan_image_url + list_url + "/" + tim_str + ext_str;
                 }
                 
                 ++body_item_index;

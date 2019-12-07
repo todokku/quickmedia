@@ -434,6 +434,9 @@ namespace QuickMedia {
                 watched_videos.clear();
                 if(content_url.empty())
                     next_page = Page::SEARCH_RESULT;
+                else {
+                    page_stack.push(Page::SEARCH_SUGGESTION);
+                }
             } else if(next_page == Page::CONTENT_LIST) {
                 content_list_url = content_url;
             } else if(next_page == Page::IMAGE_BOARD_THREAD_LIST) {
@@ -661,6 +664,8 @@ namespace QuickMedia {
         search_bar->onTextUpdateCallback = nullptr;
         search_bar->onTextSubmitCallback = nullptr;
 
+        Page previous_page = pop_page_stack();
+
         Display* disp = XOpenDisplay(NULL);
         if (!disp)
             throw std::runtime_error("Failed to open display to X11 server");
@@ -689,18 +694,18 @@ namespace QuickMedia {
 
         std::unique_ptr<VideoPlayer> video_player;
 
-        auto load_video_error_check = [this, &video_player]() {
+        auto load_video_error_check = [this, &video_player, previous_page]() {
             watched_videos.insert(content_url);
             VideoPlayer::Error err = video_player->load_video(content_url.c_str(), window.getSystemHandle());
             if(err != VideoPlayer::Error::OK) {
                 std::string err_msg = "Failed to play url: ";
                 err_msg += content_url;
                 show_notification("Video player", err_msg.c_str(), Urgency::CRITICAL);
-                current_page = Page::SEARCH_SUGGESTION;
+                current_page = previous_page;
             }
         };
         
-        video_player = std::make_unique<VideoPlayer>(current_plugin->use_tor, [this, &video_player, &seekable, &load_video_error_check](const char *event_name) {
+        video_player = std::make_unique<VideoPlayer>(current_plugin->use_tor, [this, &video_player, &seekable, &load_video_error_check, previous_page](const char *event_name) {
             bool end_of_file = false;
             if(strcmp(event_name, "pause") == 0) {
                 double time_remaining = 0.0;
@@ -725,7 +730,7 @@ namespace QuickMedia {
                 // If there are no videos to play, then dont play any...
                 if(new_video_url.empty()) {
                     show_notification("Video player", "No more related videos to play");
-                    current_page = Page::SEARCH_SUGGESTION;
+                    current_page = previous_page;
                     return;
                 }
 
@@ -759,7 +764,7 @@ namespace QuickMedia {
 
         while (current_page == Page::VIDEO_CONTENT) {
             while (window.pollEvent(event)) {
-                base_event_handler(event, Page::SEARCH_SUGGESTION);
+                base_event_handler(event, previous_page);
                 if(event.type == sf::Event::Resized) {
                     if(video_player_ui_window)
                         ui_resize = true;
@@ -798,11 +803,11 @@ namespace QuickMedia {
             VideoPlayer::Error update_err = video_player->update();
             if(update_err == VideoPlayer::Error::FAIL_TO_CONNECT_TIMEOUT) {
                 show_notification("Video player", "Failed to connect to mpv ipc after 5 seconds", Urgency::CRITICAL);
-                current_page = Page::SEARCH_SUGGESTION;
+                current_page = previous_page;
                 return;
             } else if(update_err != VideoPlayer::Error::OK) {
                 show_notification("Video player", "Unexpected error while updating", Urgency::CRITICAL);
-                current_page = Page::SEARCH_SUGGESTION;
+                current_page = previous_page;
                 return;
             }
 
@@ -897,6 +902,15 @@ namespace QuickMedia {
                     image_index = current.asInt() - 1;
             }
         }
+    }
+
+    Page Program::pop_page_stack() {
+        if(!page_stack.empty()) {
+            Page previous_page = page_stack.top();
+            page_stack.pop();
+            return previous_page;
+        }
+        return Page::EXIT;
     }
 
     void Program::episode_list_page() {
@@ -1422,6 +1436,10 @@ namespace QuickMedia {
         }
     }
 
+    static bool is_url_video(const std::string &url) {
+        return string_ends_with(url, ".webm") || string_ends_with(url, ".mp4") || string_ends_with(url, ".gif");
+    }
+
     void Program::image_board_thread_page() {
         assert(current_plugin->is_image_board());
         // TODO: Support image board other than 4chan. To make this work, the captcha code needs to be changed
@@ -1608,28 +1626,37 @@ namespace QuickMedia {
                     } else if(event.key.code == sf::Keyboard::P) {
                         // TODO: Make this work when thumbnail is preview for a video/gif instead of a static image
                         BodyItem *selected_item = body->get_selected();
-                        if(selected_item && !selected_item->fullsize_image_url.empty()) {
-                            navigation_stage = NavigationStage::VIEWING_ATTACHED_IMAGE;
-                            load_image_future = std::async(std::launch::async, [this, &image_board, &attached_image_texture, &attached_image_sprite, &attachment_load_mutex]() -> bool {
-                                BodyItem *selected_item = body->get_selected();
-                                if(!selected_item || selected_item->fullsize_image_url.empty()) {
-                                    return false;
-                                }
-                                std::string image_data;
-                                if(download_to_string(selected_item->fullsize_image_url, image_data, {}, image_board->use_tor) != DownloadResult::OK) {
-                                    show_notification(image_board->name, "Failed to download image: " + selected_item->fullsize_image_url, Urgency::CRITICAL);
-                                    return false;
-                                }
+                        if(selected_item && !selected_item->attached_content_url.empty()) {
+                            if(is_url_video(selected_item->attached_content_url)) { 
+                                page_stack.push(Page::IMAGE_BOARD_THREAD);
+                                current_page = Page::VIDEO_CONTENT;
+                                std::string prev_content_url = content_url;
+                                content_url = selected_item->attached_content_url;
+                                video_content_page();
+                                content_url = std::move(prev_content_url);
+                            } else {
+                                navigation_stage = NavigationStage::VIEWING_ATTACHED_IMAGE;
+                                load_image_future = std::async(std::launch::async, [this, &image_board, &attached_image_texture, &attached_image_sprite, &attachment_load_mutex]() -> bool {
+                                    BodyItem *selected_item = body->get_selected();
+                                    if(!selected_item || selected_item->attached_content_url.empty()) {
+                                        return false;
+                                    }
+                                    std::string image_data;
+                                    if(download_to_string(selected_item->attached_content_url, image_data, {}, image_board->use_tor) != DownloadResult::OK) {
+                                        show_notification(image_board->name, "Failed to download image: " + selected_item->attached_content_url, Urgency::CRITICAL);
+                                        return false;
+                                    }
 
-                                std::lock_guard<std::mutex> lock(attachment_load_mutex);
-                                if(!attached_image_texture->loadFromMemory(image_data.data(), image_data.size())) {
-                                    show_notification(image_board->name, "Failed to load image downloaded from url: " + selected_item->fullsize_image_url, Urgency::CRITICAL);
-                                    return false;
-                                }
-                                attached_image_texture->setSmooth(true);
-                                attached_image_sprite.setTexture(*attached_image_texture, true);
-                                return true;
-                            });
+                                    std::lock_guard<std::mutex> lock(attachment_load_mutex);
+                                    if(!attached_image_texture->loadFromMemory(image_data.data(), image_data.size())) {
+                                        show_notification(image_board->name, "Failed to load image downloaded from url: " + selected_item->attached_content_url, Urgency::CRITICAL);
+                                        return false;
+                                    }
+                                    attached_image_texture->setSmooth(true);
+                                    attached_image_sprite.setTexture(*attached_image_texture, true);
+                                    return true;
+                                });
+                            }
                         }
                     }
 

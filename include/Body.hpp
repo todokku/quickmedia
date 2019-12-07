@@ -29,7 +29,7 @@ namespace QuickMedia {
         std::string title;
         std::string url;
         std::string thumbnail_url;
-        std::string fullsize_image_url;
+        std::string attached_content_url;
         std::string author;
         bool visible;
         // Used by image boards for example. The elements are indices to other body items

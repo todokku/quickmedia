@@ -11,6 +11,7 @@
 #include <json/value.h>
 #include <unordered_set>
 #include <future>
+#include <stack>
 
 namespace QuickMedia {
     class Plugin;
@@ -44,6 +45,9 @@ namespace QuickMedia {
         LoadImageResult load_image_by_index(int image_index, sf::Texture &image_texture, sf::String &error_message);
         void download_chapter_images_if_needed(Manganelo *image_plugin);
         void select_episode(BodyItem *item, bool start_from_beginning);
+
+        // Returns Page::EXIT if empty
+        Page pop_page_stack();
     private:
         sf::RenderWindow window;
         sf::Vector2f window_size;
@@ -54,6 +58,7 @@ namespace QuickMedia {
         sf::Texture plugin_logo;
         std::unique_ptr<SearchBar> search_bar;
         Page current_page;
+        std::stack<Page> page_stack;
         // TODO: Combine these
         std::string images_url;
         std::string content_title;

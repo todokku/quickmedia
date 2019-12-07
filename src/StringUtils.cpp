@@ -1,4 +1,5 @@
 #include "../include/StringUtils.hpp"
+#include <string.h>
 
 namespace QuickMedia {
     void string_split(const std::string &str, char delimiter, StringSplitCallback callback_func) {
@@ -46,5 +47,10 @@ namespace QuickMedia {
         }
 
         return str.substr(start, end - start + 1);
+    }
+
+    bool string_ends_with(const std::string &str, const std::string &ends_with_str) {
+        size_t ends_len = ends_with_str.size();
+        return ends_len == 0 || (str.size() >= ends_len && memcmp(&str[str.size() - ends_len], ends_with_str.data(), ends_len) == 0);
     }
 }
