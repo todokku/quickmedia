@@ -25,7 +25,7 @@ namespace QuickMedia {
 
         Plugin* get_current_plugin() { return current_plugin; }
     private:
-        void base_event_handler(sf::Event &event, Page previous_page, bool handle_key_press = true);
+        void base_event_handler(sf::Event &event, Page previous_page, bool handle_key_press = true, bool clear_on_escape = true);
         void search_suggestion_page();
         void search_result_page();
         void video_content_page();

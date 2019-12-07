@@ -234,7 +234,7 @@ namespace QuickMedia {
         return 0;
     }
 
-    void Program::base_event_handler(sf::Event &event, Page previous_page, bool handle_keypress) {
+    void Program::base_event_handler(sf::Event &event, Page previous_page, bool handle_keypress, bool clear_on_escape) {
         if (event.type == sf::Event::Closed) {
             current_page = Page::EXIT;
         } else if(event.type == sf::Event::Resized) {
@@ -249,9 +249,11 @@ namespace QuickMedia {
                 body->select_next_item();
             } else if(event.key.code == sf::Keyboard::Escape) {
                 current_page = previous_page;
-                body->clear_items();
-                body->reset_selected();
-                search_bar->clear();
+                if(clear_on_escape) {
+                    body->clear_items();
+                    body->reset_selected();
+                    search_bar->clear();
+                }
             }
         } else if(event.type == sf::Event::TextEntered) {
             search_bar->onTextEntered(event.text.unicode);
@@ -764,7 +766,7 @@ namespace QuickMedia {
 
         while (current_page == Page::VIDEO_CONTENT) {
             while (window.pollEvent(event)) {
-                base_event_handler(event, previous_page);
+                base_event_handler(event, previous_page, true, false);
                 if(event.type == sf::Event::Resized) {
                     if(video_player_ui_window)
                         ui_resize = true;

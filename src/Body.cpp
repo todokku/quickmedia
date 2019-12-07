@@ -72,7 +72,7 @@ namespace QuickMedia {
     void Body::clear_items() {
         items.clear();
         selected_item = 0;
-        //item_thumbnail_textures.clear();
+        item_thumbnail_textures.clear();
     }
 
     BodyItem* Body::get_selected() const {
