@@ -76,12 +76,12 @@ namespace QuickMedia {
         bool draw_thumbnails;
     private:
         struct ThumbnailData {
-            std::string url;
+            bool referenced;
             std::shared_ptr<sf::Texture> texture;
         };
         Program *program;
         std::shared_ptr<sf::Texture> load_thumbnail_from_url(const std::string &url);
-        std::vector<ThumbnailData> item_thumbnail_textures;
+        std::unordered_map<std::string, ThumbnailData> item_thumbnail_textures;
         bool loading_thumbnail;
     };
 }

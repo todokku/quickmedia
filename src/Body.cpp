@@ -72,7 +72,6 @@ namespace QuickMedia {
     void Body::clear_items() {
         items.clear();
         selected_item = 0;
-        item_thumbnail_textures.clear();
     }
 
     BodyItem* Body::get_selected() const {
@@ -162,8 +161,15 @@ namespace QuickMedia {
         if(num_items == 0)
             return;
 
-        if((int)item_thumbnail_textures.size() != num_items)
-            item_thumbnail_textures.resize(num_items);
+        for(auto &thumbnail_it : item_thumbnail_textures) {
+            thumbnail_it.second.referenced = false;
+        }
+
+        // TODO: Instead of generating a new hash everytime to access textures, cache the hash of the thumbnail url
+        for(auto &body_item : items) {
+            // Intentionally create the item with the key item->thumbnail_url if it doesn't exist
+            item_thumbnail_textures[body_item->thumbnail_url].referenced = true;
+        }
 
         // Find the starting row that can be drawn to make selected row visible as well
         int first_visible_item = selected_item;
@@ -177,7 +183,7 @@ namespace QuickMedia {
                     item_height += author_text.getCharacterSize() + 2.0f;
                 }
                 if(draw_thumbnails && !item->thumbnail_url.empty()) {
-                    auto &item_thumbnail = item_thumbnail_textures[first_visible_item];
+                    auto &item_thumbnail = item_thumbnail_textures[item->thumbnail_url];
                     float image_height = image_max_height;
                     if(item_thumbnail.texture && item_thumbnail.texture->getNativeHandle() != 0) {
                         auto image_size = item_thumbnail.texture->getSize();
@@ -198,7 +204,7 @@ namespace QuickMedia {
 
         for(int i = first_visible_item + 1; i < num_items; ++i) {
             const auto &item = items[i];
-            auto &item_thumbnail = item_thumbnail_textures[i];
+            auto &item_thumbnail = item_thumbnail_textures[item->thumbnail_url];
 
             if(pos.y >= start_y + size.y)
                 break;
@@ -221,13 +227,7 @@ namespace QuickMedia {
             item_height += (padding_y * 2.0f);
 
             if(draw_thumbnails) {
-                // TODO: Should this be optimized by instead of checking if url changes based on index,
-                // put thumbnails in hash map based on url?
-                if(item->thumbnail_url.empty() && item_thumbnail.texture) {
-                    item_thumbnail.texture = nullptr;
-                    item_thumbnail.url = "";
-                } else if(!item->thumbnail_url.empty() && !loading_thumbnail && (!item_thumbnail.texture || item_thumbnail.url != item->url)) {
-                    item_thumbnail.url = item->url;
+                if(!item->thumbnail_url.empty() && !loading_thumbnail && !item_thumbnail.texture) {
                     item_thumbnail.texture = load_thumbnail_from_url(item->thumbnail_url);
                 }
             }
@@ -315,6 +315,15 @@ namespace QuickMedia {
             }
 
             pos.y += item_height + spacing_y;
+        }
+
+        for(auto it = item_thumbnail_textures.begin(); it != item_thumbnail_textures.end();) {
+            if(!it->second.referenced) {
+                fprintf(stderr, "Remove no longer referenced thumbnail: %p\n", it->second.texture.get());
+                it = item_thumbnail_textures.erase(it);
+            }
+            else
+                ++it;
         }
     }
 
