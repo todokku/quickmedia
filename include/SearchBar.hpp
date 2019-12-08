@@ -20,6 +20,8 @@ namespace QuickMedia {
         void onWindowResize(const sf::Vector2f &window_size);
         void onTextEntered(sf::Uint32 codepoint);
         void clear();
+        void append_text(const std::string &text_to_add);
+        bool is_cursor_at_start_of_line() const;
 
         float getBottom() const;
         float getBottomWithoutShadow() const;
@@ -36,6 +38,7 @@ namespace QuickMedia {
         bool show_placeholder;
         bool updated_search;
         bool draw_logo;
+        bool needs_update;
         sf::Clock time_since_search_update;
     };
 }

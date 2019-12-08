@@ -1,6 +1,7 @@
 #include "../include/SearchBar.hpp"
 #include "../include/Scale.hpp"
 #include <cmath>
+#include <assert.h>
 
 const sf::Color text_placeholder_color(255, 255, 255, 100);
 const sf::Color front_color(43, 45, 47);
@@ -17,7 +18,8 @@ namespace QuickMedia {
         text("Search...", font, 18), 
         show_placeholder(true),
         updated_search(false),
-        draw_logo(false)
+        draw_logo(false),
+        needs_update(false)
     {
         text.setFillColor(text_placeholder_color);
         background.setFillColor(front_color);
@@ -31,6 +33,11 @@ namespace QuickMedia {
     }
 
     void SearchBar::draw(sf::RenderWindow &window, bool draw_shadow) {
+        if(needs_update) {
+            needs_update = false;
+            sf::Vector2u window_size = window.getSize();
+            onWindowResize(sf::Vector2f(window_size.x, window_size.y));
+        }
         if(draw_shadow)
             window.draw(background_shadow);
         window.draw(shade);
@@ -60,14 +67,14 @@ namespace QuickMedia {
             draw_logo = false;
         }
 
-        float font_height = text.getCharacterSize() + 8.0f;
+        float font_height = text.getLocalBounds().height + 8.0f;
         float rect_height = std::floor(font_height + background_margin_vertical * 2.0f);
 
         float offset_x = padding_horizontal;
         if(draw_logo) {
             auto texture_size = plugin_logo_sprite.getTexture()->getSize();
             sf::Vector2f texture_size_f(texture_size.x, texture_size.y);
-            sf::Vector2f new_size = wrap_to_size(texture_size_f, sf::Vector2f(200.0f, rect_height));
+            sf::Vector2f new_size = wrap_to_size(texture_size_f, sf::Vector2f(200.0f, text.getCharacterSize() + 8.0f));
             plugin_logo_sprite.setScale(get_ratio(texture_size_f, new_size));
             plugin_logo_sprite.setPosition(25.0f, padding_vertical);
             offset_x = 25.0f + new_size.x + 25.0f;
@@ -87,6 +94,9 @@ namespace QuickMedia {
         if(codepoint == 8 && !show_placeholder) { // Backspace
             sf::String str = text.getString();
             if(str.getSize() > 0) {
+                // TODO: When it's possible to move the cursor, then check at cursor position instead of end of the string
+                if(str[str.getSize() - 1] == '\n')
+                    needs_update = true;
                 str.erase(str.getSize() - 1, 1);
                 text.setString(str);
                 if(str.getSize() == 0) {
@@ -102,11 +112,8 @@ namespace QuickMedia {
             if(onTextSubmitCallback)
                 clear_search = onTextSubmitCallback(text.getString());
 
-            if(clear_search && !show_placeholder) {
-                show_placeholder = true;
-                text.setString("Search...");
-                text.setFillColor(text_placeholder_color);
-            }
+            if(clear_search)
+                clear();
         } else if(codepoint > 31) { // Non-control character
             if(show_placeholder) {
                 show_placeholder = false;
@@ -118,13 +125,37 @@ namespace QuickMedia {
             text.setString(str);
             updated_search = true;
             time_since_search_update.restart();
-        }
+        } else if(codepoint == '\n')
+            needs_update = true;
     }
 
     void SearchBar::clear() {
+        if(show_placeholder)
+            return;
         show_placeholder = true;
         text.setString("Search...");
         text.setFillColor(text_placeholder_color);
+        needs_update = true;
+    }
+
+    void SearchBar::append_text(const std::string &text_to_add) {
+        if(show_placeholder) {
+            show_placeholder = false;
+            text.setString("");
+            text.setFillColor(sf::Color::White);
+        }
+        sf::String str = text.getString();
+        str += text_to_add;
+        text.setString(str);
+        updated_search = true;
+        time_since_search_update.restart();
+        needs_update = true;
+    }
+
+    bool SearchBar::is_cursor_at_start_of_line() const {
+        // TODO: When it's possible to move the cursor, then check at the cursor position instead of end of the string
+        const sf::String &str = text.getString();
+        return show_placeholder || str.getSize() == 0 || str[str.getSize() - 1] == '\n';
     }
 
     float SearchBar::getBottom() const {

@@ -24,7 +24,8 @@ Press `ESC` to go back to the previous menu.\
 Press `Ctrl + T` when hovering over a manga chapter to start tracking manga after that chapter. This only works if AutoMedia is installed and
 accessible in PATH environment variable.\
 Press `Backspace` to return to the preview item when reading replies in image board threads.\
-Press `Ctrl + R` to post a reply to a thread (TODO: This should be the keybinding for replying to one comment, not the thread).\
+Press `R` to paste the post number of the selected post into the post field (image boards).
+Press `Ctrl + C` to begin writing a post to a thread (image boards).\
 Press `1 to 9` or `Numpad 1 to 9` to select google captcha image when posting a comment on 4chan.\
 Press `P` to preview the attached item of the selected row in full screen view. Only works for image boards when browsing a thread.
 ## Video controls
@@ -59,7 +60,6 @@ then start downloading from the current page instead of page 1.\
 Show progress of manga in the history tab (current chapter out of total chapters).\
 Animate page navigation.\
 Properly format text in items. For example for 4chan. The size of the item should also change.\
-Show list of replies to a comment (for image boards).\
 Wrap text that is too long.\
 Add greentext support for quotes.\
 Add support for special formatting for posts by admins on imageboards.\

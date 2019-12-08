@@ -212,6 +212,8 @@ namespace QuickMedia {
                             }
                         }
                     );
+                    if(!comment_text.empty() && comment_text.back() == '\n')
+                        comment_text.back() = ' ';
                     html_unescape_sequences(comment_text);
                     // TODO: Do the same when wrapping is implemented
                     int num_lines = 0;
@@ -333,6 +335,8 @@ namespace QuickMedia {
                         }
                     }
                 );
+                if(!comment_text.empty() && comment_text.back() == '\n')
+                    comment_text.back() = ' ';
                 html_unescape_sequences(comment_text);
                 BodyItem *body_item = result_items[body_item_index].get();
                 body_item->set_title(std::move(comment_text));

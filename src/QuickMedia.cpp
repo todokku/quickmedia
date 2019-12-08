@@ -23,8 +23,9 @@
 #include <X11/Xatom.h>
 #include <signal.h>
 
-const sf::Color back_color(30, 32, 34);
-const int DOUBLE_CLICK_TIME = 500;
+static const sf::Color back_color(30, 32, 34);
+static const int DOUBLE_CLICK_TIME = 500;
+static const std::string fourchan_google_captcha_api_key = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc";
 
 // Prevent writing to broken pipe from exiting the program
 static void sigpipe_handler(int unused) {
@@ -1460,8 +1461,6 @@ namespace QuickMedia {
         const std::string &board = image_board_thread_list_url;
         const std::string &thread = content_url;
 
-        fprintf(stderr, "boards: %s, thread: %s\n", board.c_str(), thread.c_str());
-
         // TODO: Instead of using stage here, use different pages for each stage
         enum class NavigationStage {
             VIEWING_COMMENTS,
@@ -1533,7 +1532,6 @@ namespace QuickMedia {
             for(size_t i = 0; i < selected_captcha_images.size(); ++i) {
                 selected_captcha_images[i] = false;
             }
-            const std::string fourchan_google_captcha_api_key = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc";
             const std::string referer = "https://boards.4chan.org/";
             captcha_request_future = google_captcha_request_challenge(fourchan_google_captcha_api_key, referer,
                 [&navigation_stage, &request_google_captcha_image, &challenge_info](std::optional<GoogleCaptchaChallengeInfo> new_challenge_info) {
@@ -1694,9 +1692,13 @@ namespace QuickMedia {
                                 body->items[reply_index]->visible = true;
                             }
                         }
-                    } else if(event.key.code == sf::Keyboard::R && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && selected_item) {
+                    } else if(event.key.code == sf::Keyboard::C && sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && selected_item) {
                         navigation_stage = NavigationStage::REPLYING;
-                        fprintf(stderr, "Replying!\n");
+                    } else if(event.key.code == sf::Keyboard::R && selected_item) {
+                        std::string text_to_add = ">>" + selected_item->post_number;
+                        if(search_bar->is_cursor_at_start_of_line())
+                            text_to_add += '\n';
+                        search_bar->append_text(text_to_add);
                     }
                 } else if(event.type == sf::Event::TextEntered && navigation_stage == NavigationStage::REPLYING) {
                     search_bar->onTextEntered(event.text.unicode);
@@ -1704,7 +1706,7 @@ namespace QuickMedia {
 
                 if(event.type == sf::Event::KeyPressed && navigation_stage == NavigationStage::REPLYING) {
                     if(event.key.code == sf::Keyboard::Escape) {
-                        search_bar->clear();
+                        //search_bar->clear();
                         navigation_stage = NavigationStage::VIEWING_COMMENTS;
                     }
                 }
@@ -1727,7 +1729,6 @@ namespace QuickMedia {
                         navigation_stage = NavigationStage::VIEWING_COMMENTS;
                     } else if(event.key.code == sf::Keyboard::Enter) {
                         navigation_stage = NavigationStage::POSTING_SOLUTION;
-                        const std::string fourchan_google_captcha_api_key = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc";
                         captcha_post_solution_future = google_captcha_post_solution(fourchan_google_captcha_api_key, challenge_info.id, selected_captcha_images,
                             [&navigation_stage, &captcha_post_id, &captcha_solved_time, &selected_captcha_images, &challenge_info, &request_google_captcha_image, &post_comment](std::optional<std::string> new_captcha_post_id, std::optional<GoogleCaptchaChallengeInfo> new_challenge_info) {
                                 if(navigation_stage != NavigationStage::POSTING_SOLUTION)
@@ -1849,6 +1850,7 @@ namespace QuickMedia {
                 search_bar->draw(window);
             } else if(navigation_stage == NavigationStage::VIEWING_COMMENTS) {
                 body->draw(window, body_pos, body_size);
+                search_bar->draw(window);
             }
             window.display();
         }
@@ -1862,5 +1864,11 @@ namespace QuickMedia {
             post_comment_future.get();
         if(load_image_future.valid())
             load_image_future.get();
+
+        // Clear post that is still being written.
+        // TODO: A multiline text edit widget should be cleared instead of the search bar.
+        // TODO: This post should be saved for the thread. Each thread should have its own text edit widget,
+        // so you dont have to retype a post that was in the middle of being posted when returning.
+        search_bar->clear();
     }
 }

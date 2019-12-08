@@ -12,14 +12,14 @@ namespace QuickMedia {
 
     class BodyItem {
     public:
-        BodyItem(std::string _title): visible(true), num_lines(0) {
+        BodyItem(std::string _title): visible(true), num_lines(1) {
             set_title(std::move(_title));
         }
 
         void set_title(std::string new_title) {
             title = std::move(new_title);
             // TODO: Optimize this
-            num_lines = 0;
+            num_lines = 1;
             for(char c : title) {
                 if(c == '\n')
                     ++num_lines;

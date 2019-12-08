@@ -133,7 +133,7 @@ namespace QuickMedia {
     // TODO: Load thumbnails with more than one thread.
     // TODO: Show chapters (rows) that have been read differently to make it easier to see what hasn't been read yet.
     void Body::draw(sf::RenderWindow &window, sf::Vector2f pos, sf::Vector2f size, const Json::Value &content_progress) {
-        const float font_height = title_text.getCharacterSize() + 4.0f;
+        const float font_height = title_text.getCharacterSize() + title_text.getLineSpacing() + 4.0f;
         const float image_max_height = 100.0f;
         const float spacing_y = 15.0f;
         const float padding_x = 10.0f;
@@ -178,7 +178,7 @@ namespace QuickMedia {
         for(; first_visible_item >= 0; --first_visible_item) {
             auto &item = items[first_visible_item];
             if(item->visible) {
-                float item_height = font_height * std::max(1, item->num_lines);
+                float item_height = font_height * item->num_lines;
                 if(!item->author.empty()) {
                     item_height += author_text.getCharacterSize() + 2.0f;
                 }
@@ -212,7 +212,7 @@ namespace QuickMedia {
             if(!item->visible)
                 continue;
 
-            float item_height = font_height * std::max(1, item->num_lines);
+            float item_height = font_height * item->num_lines;
             if(!item->author.empty()) {
                 item_height += author_text.getCharacterSize() + 2.0f;
             }
@@ -318,10 +318,8 @@ namespace QuickMedia {
         }
 
         for(auto it = item_thumbnail_textures.begin(); it != item_thumbnail_textures.end();) {
-            if(!it->second.referenced) {
-                fprintf(stderr, "Remove no longer referenced thumbnail: %p\n", it->second.texture.get());
+            if(!it->second.referenced) 
                 it = item_thumbnail_textures.erase(it);
-            }
             else
                 ++it;
         }
