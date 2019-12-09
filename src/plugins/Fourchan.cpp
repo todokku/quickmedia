@@ -178,6 +178,11 @@ namespace QuickMedia {
                     if(!thread.isObject())
                         continue;
 
+                    const Json::Value &sub = thread["sub"];
+                    const char *sub_begin = "";
+                    const char *sub_end = sub_begin;
+                    sub.getString(&sub_begin, &sub_end);
+
                     const Json::Value &com = thread["com"];
                     const char *comment_begin = "";
                     const char *comment_end = comment_begin;
@@ -188,6 +193,30 @@ namespace QuickMedia {
                         continue;
 
                     std::string comment_text;
+                    extract_comment_pieces(sub_begin, sub_end - sub_begin,
+                        [&comment_text](const CommentPiece &cp) {
+                            switch(cp.type) {
+                                case CommentPiece::Type::TEXT:
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    break;
+                                case CommentPiece::Type::QUOTE:
+                                    comment_text += '>';
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    //comment_text += '\n';
+                                    break;
+                                case CommentPiece::Type::QUOTELINK: {
+                                    comment_text.append(cp.text.data, cp.text.size);
+                                    break;
+                                }
+                                case CommentPiece::Type::LINE_CONTINUE: {
+                                    if(!comment_text.empty() && comment_text.back() == '\n') {
+                                        comment_text.pop_back();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    );
                     extract_comment_pieces(comment_begin, comment_end - comment_begin,
                         [&comment_text](const CommentPiece &cp) {
                             switch(cp.type) {
@@ -289,6 +318,11 @@ namespace QuickMedia {
                 if(!post.isObject())
                     continue;
 
+                const Json::Value &sub = post["sub"];
+                const char *sub_begin = "";
+                const char *sub_end = sub_begin;
+                sub.getString(&sub_begin, &sub_end);
+
                 const Json::Value &com = post["com"];
                 const char *comment_begin = "";
                 const char *comment_end = comment_begin;
@@ -304,6 +338,32 @@ namespace QuickMedia {
                     author_str = author.asString();
 
                 std::string comment_text;
+                extract_comment_pieces(sub_begin, sub_end - sub_begin,
+                    [&comment_text](const CommentPiece &cp) {
+                        switch(cp.type) {
+                            case CommentPiece::Type::TEXT:
+                                comment_text.append(cp.text.data, cp.text.size);
+                                break;
+                            case CommentPiece::Type::QUOTE:
+                                comment_text += '>';
+                                comment_text.append(cp.text.data, cp.text.size);
+                                //comment_text += '\n';
+                                break;
+                            case CommentPiece::Type::QUOTELINK: {
+                                comment_text.append(cp.text.data, cp.text.size);
+                                break;
+                            }
+                            case CommentPiece::Type::LINE_CONTINUE: {
+                                if(!comment_text.empty() && comment_text.back() == '\n') {
+                                    comment_text.pop_back();
+                                }
+                                break;
+                            }
+                        }
+                    }
+                );
+                if(!comment_text.empty())
+                    comment_text += '\n';
                 extract_comment_pieces(comment_begin, comment_end - comment_begin,
                     [&comment_text, &comment_by_postno, &result_items, body_item_index](const CommentPiece &cp) {
                         switch(cp.type) {

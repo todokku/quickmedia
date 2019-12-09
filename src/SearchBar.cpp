@@ -67,14 +67,15 @@ namespace QuickMedia {
             draw_logo = false;
         }
 
-        float font_height = text.getLocalBounds().height + 8.0f;
+        float font_height = text.getLocalBounds().height + 12.0f;
         float rect_height = std::floor(font_height + background_margin_vertical * 2.0f);
 
         float offset_x = padding_horizontal;
         if(draw_logo) {
+            float one_line_height = std::floor(text.getCharacterSize() + 8.0f + background_margin_vertical * 2.0f);
             auto texture_size = plugin_logo_sprite.getTexture()->getSize();
             sf::Vector2f texture_size_f(texture_size.x, texture_size.y);
-            sf::Vector2f new_size = wrap_to_size(texture_size_f, sf::Vector2f(200.0f, text.getCharacterSize() + 8.0f));
+            sf::Vector2f new_size = wrap_to_size(texture_size_f, sf::Vector2f(200.0f, one_line_height));
             plugin_logo_sprite.setScale(get_ratio(texture_size_f, new_size));
             plugin_logo_sprite.setPosition(25.0f, padding_vertical);
             offset_x = 25.0f + new_size.x + 25.0f;
