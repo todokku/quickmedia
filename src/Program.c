@@ -55,7 +55,7 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
                 break;
         }
 
-        if(waitpid(pid, &status, WUNTRACED) == -1) {
+        if(waitpid(pid, &status, 0) == -1) {
             perror("waitpid failed");
             result = -5;
             goto cleanup;
@@ -89,7 +89,7 @@ int exec_program(const char **args, ProgramOutputCallback output_callback, void 
 
 int wait_program(pid_t process_id) {
     int status;
-    if(waitpid(process_id, &status, WUNTRACED) == -1) {
+    if(waitpid(process_id, &status, 0) == -1) {
         perror("waitpid failed");
         return -errno;
     }

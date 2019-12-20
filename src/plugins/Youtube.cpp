@@ -75,7 +75,7 @@ namespace QuickMedia {
         url += url_param_encode(text);
 
         std::string website_data;
-        if(download_to_string(url, website_data) != DownloadResult::OK)
+        if(download_to_string(url, website_data, {}, use_tor) != DownloadResult::OK)
             return SuggestionResult::NET_ERR;
 
         struct ItemData {
@@ -164,7 +164,7 @@ namespace QuickMedia {
         }
 
         std::string website_data;
-        if(download_to_string(modified_url, website_data) != DownloadResult::OK)
+        if(download_to_string(modified_url, website_data, {}, use_tor) != DownloadResult::OK)
             return result_items;
 
         QuickMediaHtmlSearch html_search;

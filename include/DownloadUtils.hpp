@@ -20,6 +20,6 @@ namespace QuickMedia {
         std::string value;
     };
 
-    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args = {}, bool use_tor = false);
+    DownloadResult download_to_string(const std::string &url, std::string &result, const std::vector<CommandArg> &additional_args, bool use_tor);
     std::vector<CommandArg> create_command_args_from_form_data(const std::vector<FormData> &form_data);
 }

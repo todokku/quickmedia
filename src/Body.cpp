@@ -112,7 +112,7 @@ namespace QuickMedia {
         loading_thumbnail = true;
         thumbnail_load_thread = std::thread([this, result, url]() {
             std::string texture_data;
-            if(download_to_string(url, texture_data) == DownloadResult::OK) {
+            if(download_to_string(url, texture_data, {}, program->get_current_plugin()->use_tor) == DownloadResult::OK) {
                 if(result->loadFromMemory(texture_data.data(), texture_data.size())) {
                     //result->generateMipmap();
                 }

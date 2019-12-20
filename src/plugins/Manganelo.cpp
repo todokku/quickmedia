@@ -5,7 +5,7 @@
 namespace QuickMedia {
     SearchResult Manganelo::search(const std::string &url, BodyItems &result_items) {
         std::string website_data;
-        if(download_to_string(url, website_data) != DownloadResult::OK)
+        if(download_to_string(url, website_data, {}, use_tor) != DownloadResult::OK)
             return SearchResult::NET_ERR;
 
         QuickMediaHtmlSearch html_search;
@@ -57,7 +57,7 @@ namespace QuickMedia {
         CommandArg data_arg = { "--data", std::move(search_term) };
 
         std::string server_response;
-        if(download_to_string(url, server_response, {data_arg}) != DownloadResult::OK)
+        if(download_to_string(url, server_response, {data_arg}, use_tor) != DownloadResult::OK)
             return SuggestionResult::NET_ERR;
 
         if(server_response.empty())
@@ -111,7 +111,7 @@ namespace QuickMedia {
         last_chapter_image_urls.clear();
 
         std::string website_data;
-        if(download_to_string(url, website_data) != DownloadResult::OK)
+        if(download_to_string(url, website_data, {}, use_tor) != DownloadResult::OK)
             return ImageResult::NET_ERR;
 
         QuickMediaHtmlSearch html_search;

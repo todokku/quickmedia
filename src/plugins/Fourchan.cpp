@@ -13,7 +13,7 @@ static const std::string fourchan_image_url = "https://i.4cdn.org/";
 namespace QuickMedia {
     PluginResult Fourchan::get_front_page(BodyItems &result_items) {
         std::string server_response;
-        if(download_to_string(fourchan_url + "boards.json", server_response) != DownloadResult::OK)
+        if(download_to_string(fourchan_url + "boards.json", server_response, {}, use_tor) != DownloadResult::OK)
             return PluginResult::NET_ERR;
 
         Json::Value json_root;
@@ -153,7 +153,7 @@ namespace QuickMedia {
 
     PluginResult Fourchan::get_threads(const std::string &url, BodyItems &result_items) {
         std::string server_response;
-        if(download_to_string(fourchan_url + url + "/catalog.json", server_response) != DownloadResult::OK)
+        if(download_to_string(fourchan_url + url + "/catalog.json", server_response, {}, use_tor) != DownloadResult::OK)
             return PluginResult::NET_ERR;
 
         Json::Value json_root;
@@ -281,7 +281,7 @@ namespace QuickMedia {
 
     PluginResult Fourchan::get_thread_comments(const std::string &list_url, const std::string &url, BodyItems &result_items) {
         std::string server_response;
-        if(download_to_string(fourchan_url + list_url + "/thread/" + url + ".json", server_response) != DownloadResult::OK)
+        if(download_to_string(fourchan_url + list_url + "/thread/" + url + ".json", server_response, {}, use_tor) != DownloadResult::OK)
             return PluginResult::NET_ERR;
 
         Json::Value json_root;

@@ -1049,7 +1049,7 @@ namespace QuickMedia {
                     return true;
 
                 std::string image_content;
-                if(download_to_string(url, image_content) != DownloadResult::OK) {
+                if(download_to_string(url, image_content, {}, current_plugin->use_tor) != DownloadResult::OK) {
                     show_notification("Manganelo", "Failed to download image: " + url, Urgency::CRITICAL);
                     return false;
                 }
