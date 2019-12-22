@@ -407,8 +407,10 @@ namespace QuickMedia {
         search_bar->onTextSubmitCallback = [this, &tabs, &selected_tab](const std::string &text) -> bool {
             Page next_page = current_plugin->get_page_after_search();
             // TODO: This shouldn't be done if search_selected_suggestion fails
-            if(search_selected_suggestion(tabs[selected_tab].body, body, current_plugin, content_title, content_url) != SearchResult::OK)
+            if(search_selected_suggestion(tabs[selected_tab].body, body, current_plugin, content_title, content_url) != SearchResult::OK) {
+                show_notification("Search", "Search failed!", Urgency::CRITICAL);
                 return false;
+            }
 
             if(next_page == Page::EPISODE_LIST) {
                 if(content_url.empty()) {
@@ -1091,7 +1093,11 @@ namespace QuickMedia {
         download_chapter_images_if_needed(image_plugin);
 
         int num_images = 0;
-        image_plugin->get_number_of_images(images_url, num_images);
+        if(image_plugin->get_number_of_images(images_url, num_images) != ImageResult::OK) {
+            show_notification("Plugin", "Failed to get number of images", Urgency::CRITICAL);
+            current_page = Page::EPISODE_LIST;
+            return;
+        }
         image_index = std::min(image_index, num_images);
 
         if(image_index < num_images) {

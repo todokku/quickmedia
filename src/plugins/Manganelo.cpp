@@ -13,7 +13,7 @@ namespace QuickMedia {
         if(result != 0)
             goto cleanup;
 
-        result = quickmedia_html_find_nodes_xpath(&html_search, "//div[class='chapter-list']/div[class='row']//a",
+        result = quickmedia_html_find_nodes_xpath(&html_search, "//ul[class='row-content-chapter']//a",
             [](QuickMediaHtmlNode *node, void *userdata) {
                 auto *item_data = (BodyItems*)userdata;
                 const char *href = quickmedia_html_node_get_attribute_value(node, "href");
@@ -119,7 +119,7 @@ namespace QuickMedia {
         if(result != 0)
             goto cleanup;
 
-        result = quickmedia_html_find_nodes_xpath(&html_search, "//div[id='vungdoc']/img",
+        result = quickmedia_html_find_nodes_xpath(&html_search, "//div[class='container-chapter-reader']//img",
             [](QuickMediaHtmlNode *node, void *userdata) {
                 auto *urls = (std::vector<std::string>*)userdata;
                 const char *src = quickmedia_html_node_get_attribute_value(node, "src");
@@ -135,6 +135,8 @@ namespace QuickMedia {
         quickmedia_html_search_deinit(&html_search);
         if(result == 0)
             last_chapter_url = url;
+        if(last_chapter_image_urls.empty())
+            return ImageResult::ERR;
         return result == 0 ? ImageResult::OK : ImageResult::ERR;
     }
 
