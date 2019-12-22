@@ -51,7 +51,7 @@ namespace QuickMedia {
     }
 
     SuggestionResult Manganelo::update_search_suggestions(const std::string &text, BodyItems &result_items) {
-        std::string url = "https://manganelo.com/home_json_search";
+        std::string url = "https://manganelo.com/getstorysearchjson";
         std::string search_term = "searchword=";
         search_term += url_param_encode(text);
         CommandArg data_arg = { "--data", std::move(search_term) };
