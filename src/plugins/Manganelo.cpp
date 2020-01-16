@@ -119,7 +119,7 @@ namespace QuickMedia {
         if(result != 0)
             goto cleanup;
 
-        result = quickmedia_html_find_nodes_xpath(&html_search, "//div[class='container-chapter-reader']//img",
+        result = quickmedia_html_find_nodes_xpath(&html_search, "//div[class='container-chapter-reader']/img",
             [](QuickMediaHtmlNode *node, void *userdata) {
                 auto *urls = (std::vector<std::string>*)userdata;
                 const char *src = quickmedia_html_node_get_attribute_value(node, "src");

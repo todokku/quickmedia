@@ -544,17 +544,17 @@ namespace QuickMedia {
                 sf::RectangleShape tab_background(sf::Vector2f(std::floor(width_per_tab), tab_height));
                 int i = 0;
                 for(Tab &tab : tabs) {
-                    if(i == selected_tab)
+                    if(i == selected_tab) {
+                        tab.body->draw(window, body_pos, body_size);
                         tab_background.setFillColor(tab_selected_color);
-                    else
+                    } else {
                         tab_background.setFillColor(tab_unselected_color);
+                    }
                     tab_background.setPosition(std::floor(i * width_per_tab), tab_spacer_height + std::floor(search_bar->getBottomWithoutShadow()));
                     window.draw(tab_background);
                     const float center = (i * width_per_tab) + (width_per_tab * 0.5f);
                     tab.text->setPosition(std::floor(center - tab.text->getLocalBounds().width * 0.5f), tab_y);
                     window.draw(*tab.text);
-                    if(i == selected_tab)
-                        tab.body->draw(window, body_pos, body_size);
                     ++i;
                 }
             }

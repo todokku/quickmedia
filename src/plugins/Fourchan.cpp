@@ -137,8 +137,13 @@ namespace QuickMedia {
 
     static void extract_comment_pieces(const char *html_source, size_t size, CommentPieceCallback callback) {
         TidyDoc doc = tidyCreate();
-        for(int i = 0; i < N_TIDY_OPTIONS; ++i)
-            tidyOptSetBool(doc, (TidyOptionId)i, no);
+        TidyIterator it_opt = tidyGetOptionList(doc);
+        while (it_opt) {
+            TidyOption opt = tidyGetNextOption(doc, &it_opt);
+            if (tidyOptGetType(opt) == TidyBoolean)
+                tidyOptSetBool(doc, tidyOptGetId(opt), no);
+        }
+        tidyOptSetInt(doc, TidyWrapLen, 0);
         if(tidyParseString(doc, html_source) < 0) {
             CommentPiece comment_piece;
             comment_piece.type = CommentPiece::Type::TEXT;
