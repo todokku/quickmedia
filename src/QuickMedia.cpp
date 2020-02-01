@@ -374,8 +374,13 @@ namespace QuickMedia {
 
         // TOOD: Make generic, instead of checking for plugin
         if(current_plugin->name == "manganelo") {
+            Path content_storage_dir = get_storage_dir().join("manga");
+            if(create_directory_recursive(content_storage_dir) != 0) {
+                show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
+                exit(1);
+            }
             // TODO: Make asynchronous
-            for_files_in_dir(get_storage_dir().join("manga"), [&history_body](const std::filesystem::path &filepath) {
+            for_files_in_dir(content_storage_dir, [&history_body](const std::filesystem::path &filepath) {
                 Path fullpath(filepath.c_str());
                 Json::Value body;
                 if(!read_file_as_json(fullpath, body)) {
@@ -419,10 +424,6 @@ namespace QuickMedia {
                 }
                 
                 Path content_storage_dir = get_storage_dir().join("manga");
-                if(create_directory_recursive(content_storage_dir) != 0) {
-                    show_notification("Storage", "Failed to create directory: " + content_storage_dir.data, Urgency::CRITICAL);
-                    return false;
-                }
 
                 std::string manga_id;
                 if(!manga_extract_id_from_url(content_url, manga_id))

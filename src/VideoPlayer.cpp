@@ -67,14 +67,20 @@ namespace QuickMedia {
         std::vector<const char*> args;
         if(use_tor)
             args.push_back("torsocks");
-        args.insert(args.end(), { "mpv", "--keep-open=yes", /*"--keep-open-pause=no",*/ "--input-ipc-server", ipc_server_path,
+
+        std::string input_ipc_server_arg = "--input-ipc-server=";
+        input_ipc_server_arg += ipc_server_path;
+        std::string wid_arg = "--wid=";
+        wid_arg += parent_window_str;
+
+        args.insert(args.end(), { "mpv", "--keep-open=yes", /*"--keep-open-pause=no",*/ input_ipc_server_arg.c_str(),
             "--no-config", "--no-input-default-bindings", "--input-vo-keyboard=no", "--no-input-cursor",
             "--cache-secs=120", "--demuxer-max-bytes=40M", "--demuxer-max-back-bytes=20M",
             "--no-input-terminal",
             "--no-osc",
             "--profile=gpu-hq",
             /*"--vo=gpu", "--hwdec=auto",*/
-            "--wid", parent_window_str.c_str(), "--", path, nullptr });
+            wid_arg.c_str(), "--", path, nullptr });
         if(exec_program_async(args.data(), &video_process_id) != 0)
             return Error::FAIL_TO_LAUNCH_PROCESS;
 
