@@ -380,7 +380,7 @@ namespace QuickMedia {
                 exit(1);
             }
             // TODO: Make asynchronous
-            for_files_in_dir(content_storage_dir, [&history_body](const std::filesystem::path &filepath) {
+            for_files_in_dir_sort_last_modified(content_storage_dir, [&history_body](const std::filesystem::path &filepath) {
                 Path fullpath(filepath.c_str());
                 Json::Value body;
                 if(!read_file_as_json(fullpath, body)) {

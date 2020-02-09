@@ -131,4 +131,20 @@ namespace QuickMedia {
                 break;
         }
     }
+
+    void for_files_in_dir_sort_last_modified(const Path &path, FileIteratorCallback callback) {
+        std::vector<std::filesystem::directory_entry> paths;
+        for(auto &p : std::filesystem::directory_iterator(path.data)) {
+            paths.push_back(p);
+        }
+
+        std::sort(paths.begin(), paths.end(), [](const std::filesystem::directory_entry &path1, std::filesystem::directory_entry &path2) {
+            return path1.last_write_time() > path2.last_write_time();
+        });
+
+        for(auto &p : paths) {
+            if(!callback(p.path()))
+                break;
+        }
+    }
 }

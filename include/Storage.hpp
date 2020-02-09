@@ -23,4 +23,5 @@ namespace QuickMedia {
     int file_overwrite(const Path &path, const std::string &data);
     int create_lock_file(const Path &path);
     void for_files_in_dir(const Path &path, FileIteratorCallback callback);
+    void for_files_in_dir_sort_last_modified(const Path &path, FileIteratorCallback callback);
 }
